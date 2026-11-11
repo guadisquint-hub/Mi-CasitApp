@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi CasitApp - Lista de Deseos</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Outfits & Quicksand -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Vue.js 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Quicksand', sans-serif;
+    }
+    h1, h2, h3, h4, .font-heading {
+      font-family: 'Outfit', sans-serif;
+    }
+    .bg-gradient-pastel {
+      background: linear-gradient(135deg, #FDE2E4 0%, #E2E2FF 50%, #E0F4FF 100%);
+    }
+    .bg-card-pastel {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(236, 169, 186, 0.5);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-pastel min-h-screen text-slate-700 pb-12">
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60">
+    
+    <!-- Encabezado con Switch de Modo -->
+    <header class="p-5 pb-3 flex justify-between items-center border-b border-pink-100 bg-white/70 backdrop-blur-md sticky top-0 z-30">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pink-300 to-purple-300 flex items-center justify-center shadow-sm">
+          <i data-lucide="gift" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-pink-600 leading-none">Mi CasitApp</h1>
+          <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Tienda de Regalos</span>
+        </div>
+      </div>
+      
+      <!-- Botón para alternar entre vista Tienda/Familia -->
+      <button @click="isAdmin = !isAdmin" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm border"
+              :class="isAdmin ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-pink-100 text-pink-700 border-pink-200'">
+        <i :data-lucide="isAdmin ? 'settings' : 'heart'" class="w-3.5 h-3.5"></i>
+        <span>{{ isAdmin ? 'Modo Tienda' : 'Modo Familia' }}</span>
+      </button>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-1 p-4">
+
+      <!-- VISTA DE CONFIRMACIÓN DE PEDIDO -->
+      <section v-if="orderCompleted" class="space-y-4 text-center py-6">
+        <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-500 shadow-inner">
+          <i data-lucide="check-circle-2" class="w-10 h-10"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800">¡Pedido Confirmado!</h2>
+        <p class="text-sm text-slate-600 px-4">Hemos reservado los regalos seleccionados para **{{ activeList.childName }}**.</p>
+        
+        <div class="bg-white p-4 rounded-2xl shadow-sm text-left border border-slate-100 text-xs space-y-2">
+          <p class="font-bold border-b pb-1">Resumen para envío/retiro:</p>
+          <p><span class="font-semibold">Cliente:</span> {{ lastOrder.buyerName }} ({{ lastOrder.phone }})</p>
+          <p><span class="font-semibold">Pago:</span> {{ lastOrder.paymentMethod }}</p>
+          <p v-if="lastOrder.notes"><span class="font-semibold">Nota:</span> {{ lastOrder.notes }}</p>
+          <div class="border-t pt-2 space-y-1">
+            <div v-for="item in lastOrder.items" :key="item.id" class="flex justify-between">
+              <span>{{ item.name }}</span>
+              <span class="font-bold">₲{{ item.price.toLocaleString() }}</span>
+            </div>
+            <div v-if="lastOrder.giftBag" class="flex justify-between text-pink-600">
+              <span>Bolsa de regalo de lujo</span>
+              <span class="font-bold">₲{{ giftBagPrice.toLocaleString() }}</span>
+            </div>
+          </div>
+          <div class="border-t pt-2 flex justify-between font-bold text-sm text-slate-800">
+            <span>Total:</span>
+            <span class="text-pink-600">₲{{ lastOrder.total.toLocaleString() }}</span>
+          </div>
+        </div>
+
+        <button @click="resetOrder" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl shadow-md hover:opacity-95 transition-all">
+          Volver a la Lista
+        </button>
+      </section>
+
+      <!-- VISTA MODOS NORMALES -->
+      <template v-else>
+
+        <!-- SELECCIÓN / CREACIÓN DE LISTAS -->
+        <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between">
+          <div class="flex-1">
+            <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">Lista actual</label>
+            <select v-model="selectedListId" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none focus:ring-2 focus:ring-pink-300">
+              <option v-for="list in lists" :key="list.id" :value="list.id">
+                {{ list.childName }} ({{ list.event }})
+              </option>
+            </select>
+          </div>
+          <button v-if="isAdmin" @click="showNewListModal = true" class="ml-2 p-2.5 bg-pink-500 text-white rounded-xl shadow-md hover:bg-pink-600 transition-all">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- TARJETA CABECERA DE LA LISTA -->
+        <div class="bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 p-5 rounded-3xl shadow-sm mb-5 text-slate-800 relative overflow-hidden">
+          <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-white/20 rounded-full blur-xl"></div>
+          <span class="bg-white/70 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase tracking-wide">
+            {{ activeList.event }}
+          </span>
+          <h2 class="text-2xl font-bold mt-2 leading-tight">Lista de {{ activeList.childName }}</h2>
+          <p class="text-xs text-slate-600 mt-1">¡Elige el regalo perfecto para hacer un día especial!</p>
+        </div>
+
+        <!-- FORMULARIO ADMIN: AGREGAR PRODUCTO A ESTA LISTA -->
+        <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
+          <h3 class="font-bold text-sm text-pink-600 flex items-center gap-1.5">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Agregar Regalo a la Lista
+          </h3>
+          <div class="grid grid-cols-3 gap-2">
+            <input v-model="newProduct.emoji" type="text" placeholder="Emoji 🎁" class="p-2 bg-slate-50 rounded-xl text-center border-0 text-lg">
+            <input v-model="newProduct.name" type="text" placeholder="Nombre" class="col-span-2 p-2 bg-slate-50 rounded-xl border-0 text-sm">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <input v-model.number="newProduct.price" type="number" placeholder="Precio (₲)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
+            <input v-model="newProduct.desc" type="text" placeholder="Detalle (opcional)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
+          </div>
+          <button @click="addProduct" class="w-full py-2.5 bg-purple-500 text-white font-bold text-xs rounded-xl shadow-sm hover:bg-purple-600 transition-all">
+            Añadir a la lista
+          </button>
+        </div>
+
+        <!-- LISTA DE PRODUCTOS DISPONIBLES -->
+        <div class="space-y-3 mb-6">
+          <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 px-1">
+            Regalos Disponibles ({{ availableProducts.length }})
+          </h3>
+
+          <div v-if="availableProducts.length === 0" class="text-center py-8 bg-white/60 rounded-3xl border border-dashed border-slate-300">
+            <p class="text-3xl mb-1">🎉</p>
+            <p class="text-sm font-bold text-slate-500">¡Todos los regalos han sido reservados!</p>
+            <p class="text-xs text-slate-400 mt-0.5">Gracias a todos los familiares.</p>
+          </div>
+
+          <div v-for="product in availableProducts" :key="product.id" 
+               class="bg-card-pastel p-3.5 rounded-2xl border border-white shadow-sm flex items-center gap-3 transition-all">
+            <div class="w-14 h-14 bg-pink-100/70 rounded-2xl flex items-center justify-center text-2xl shadow-inner flex-shrink-0">
+              {{ product.emoji || '🎁' }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
+              <p class="text-xs text-slate-500 truncate">{{ product.desc || 'Sin detalle adicional' }}</p>
+              <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
+            </div>
+            
+            <!-- Checkbox de selección para familiares -->
+            <button @click="toggleSelect(product.id)" 
+                    class="w-8 h-8 rounded-full border flex items-center justify-center transition-all"
+                    :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md scale-105' : 'bg-slate-100 border-slate-200 text-transparent'">
+              <i data-lucide="check" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- OPCIONES ADICIONALES Y FORMULARIO DE COMPRA -->
+        <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4 animate-fade-in">
+          <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
+            <span>Tu Selección ({{ selectedIds.length }})</span>
+            <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
+          </h3>
+
+          <!-- Opción adicional: Bolsa de regalo -->
+          <div class="flex items-center justify-between bg-pink-50/80 p-3 rounded-2xl border border-pink-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-xl">🛍️</span>
+              <div>
+                <p class="font-bold text-xs text-slate-800">Agregar Bolsa de Regalo Especial</p>
+                <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }} por pedido</p>
+              </div>
+            </div>
+            <input type="checkbox" v-model="includeGiftBag" class="w-5 h-5 accent-pink-500 rounded cursor-pointer">
+          </div>
+
+          <!-- Selección de Método de Pago -->
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 block mb-1">Método de Pago</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button v-for="method in paymentMethods" :key="method.id"
+                      @click="paymentMethod = method.id"
+                      class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
+                      :class="paymentMethod === method.id ? 'bg-purple-500 text-white border-purple-500 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200'">
+                {{ method.name }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Datos del comprador -->
+          <div class="space-y-2">
+            <input v-model="buyer.name" type="text" placeholder="Tu Nombre o Apellido (ej. Tía María)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none focus:ring-2 focus:ring-pink-300">
+            <input v-model="buyer.phone" type="tel" placeholder="Teléfono de Contacto" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none focus:ring-2 focus:ring-pink-300">
+            <input v-model="buyer.notes" type="text" placeholder="Mensaje o dedicatoria opcional" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none focus:ring-2 focus:ring-pink-300">
+          </div>
+
+          <!-- Total y Confirmación -->
+          <div class="pt-2 border-t flex items-center justify-between">
+            <div>
+              <span class="text-[10px] text-slate-400 font-bold uppercase block">Total a pagar</span>
+              <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
+            </div>
+            <button @click="confirmOrder" 
+                    :disabled="!buyer.name || !buyer.phone"
+                    class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 disabled:opacity-40 transition-all">
+              Confirmar Regalo
+            </button>
+          </div>
+        </div>
+
+      </template>
+
+    </main>
+
+    <!-- MODAL DE CREACIÓN DE NUEVA LISTA (TIENDA) -->
+    <div v-if="showNewListModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl">
+        <h3 class="font-bold text-base text-slate-800">Crear Nueva Lista</h3>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Nombre del Agasajado/a</label>
+          <input v-model="newList.childName" type="text" placeholder="ej. Sofía" class="w-full p-2 bg-slate-50 rounded-xl text-sm border-0 mt-1">
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Ocasión / Evento</label>
+          <input v-model="newList.event" type="text" placeholder="ej. Cumpleaños #7" class="w-full p-2 bg-slate-50 rounded-xl text-sm border-0 mt-1">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="showNewListModal = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
+          <button @click="createList" class="flex-1 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl">Crear</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, updated } = Vue;
+
+    createApp({
+      setup() {
+        const isAdmin = ref(false);
+        const giftBagPrice = ref(10000); // Precio configurable para bolsa de regalo
+        const showNewListModal = ref(false);
+
+        // Listas predeterminadas de ejemplo
+        const lists = ref([
+          {
+            id: 'list-1',
+            childName: 'Sofía',
+            event: 'Cumpleaños #6',
+            products: [
+              { id: 1, name: 'Muñeca Tela Artesanal', price: 120000, emoji: '🧸', desc: 'Edición especial hecha a mano', purchased: false },
+              { id: 2, name: 'Set de Peluche & Cuaderno', price: 65000, emoji: '🎨', desc: 'Para dibujar y colorear', purchased: false },
+              { id: 3, name: 'Caja Regalo Sorpresa', price: 95000, emoji: '🎁', desc: 'Incluye accesorios variados', purchased: false }
+            ]
+          }
+        ]);
+
+        const selectedListId = ref('list-1');
+        const selectedIds = ref([]);
+        const includeGiftBag = ref(false);
+        const paymentMethod = ref('transfer');
+        const orderCompleted = ref(false);
+        const lastOrder = ref(null);
+
+        const paymentMethods = [
+          { id: 'transfer', name: 'Transferencia' },
+          { id: 'pos', name: 'Tarjeta / POS' },
+          { id: 'cash', name: 'Efectivo' }
+        ];
+
+        const newList = ref({ childName: '', event: '' });
+        const newProduct = ref({ name: '', price: null, emoji: '', desc: '' });
+        const buyer = ref({ name: '', phone: '', notes: '' });
+
+        // Computed properties
+        const activeList = computed(() => {
+          return lists.value.find(l => l.id === selectedListId.value) || lists.value[0];
+        });
+
+        const availableProducts = computed(() => {
+          return activeList.value ? activeList.value.products.filter(p => !p.purchased) : [];
+        });
+
+        const subtotal = computed(() => {
+          return activeList.value.products
+            .filter(p => selectedIds.value.includes(p.id))
+            .reduce((sum, p) => sum + p.price, 0);
+        });
+
+        const total = computed(() => {
+          return subtotal.value + (includeGiftBag.value ? giftBagPrice.value : 0);
+        });
+
+        // Métodos
+        const toggleSelect = (id) => {
+          const index = selectedIds.value.indexOf(id);
+          if (index > -1) {
+            selectedIds.value.splice(index, 1);
+          } else {
+            selectedIds.value.push(id);
+          }
+        };
+
+        const addProduct = () => {
+          if (!newProduct.value.name || !newProduct.value.price) return;
+          activeList.value.products.push({
+            id: Date.now(),
+            name: newProduct.value.name,
+            price: newProduct.value.price,
+            emoji: newProduct.value.emoji || '🎁',
+            desc: newProduct.value.desc,
+            purchased: false
+          });
+          newProduct.value = { name: '', price: null, emoji: '', desc: '' };
+          saveToLocalStorage();
+        };
+
+        const createList = () => {
+          if (!newList.value.childName) return;
+          const id = 'list-' + Date.now();
+          lists.value.push({
+            id,
+            childName: newList.value.childName,
+            event: newList.value.event || 'Evento Especial',
+            products: []
+          });
+          selectedListId.value = id;
+          newList.value = { childName: '', event: '' };
+          showNewListModal.value = false;
+          saveToLocalStorage();
+        };
+
+        const confirmOrder = () => {
+          const itemsBought = activeList.value.products.filter(p => selectedIds.value.includes(p.id));
+          
+          lastOrder.value = {
+            buyerName: buyer.value.name,
+            phone: buyer.value.phone,
+            notes: buyer.value.notes,
+            items: itemsBought,
+            giftBag: includeGiftBag.value,
+            paymentMethod: paymentMethods.find(m => m.id === paymentMethod.value).name,
+            total: total.value
+          };
+
+          // Marcar productos como comprados (desaparecen de la lista activa)
+          activeList.value.products.forEach(p => {
+            if (selectedIds.value.includes(p.id)) {
+              p.purchased = true;
+            }
+          });
+
+          orderCompleted.value = true;
+          saveToLocalStorage();
+        };
+
+        const resetOrder = () => {
+          selectedIds.value = [];
+          includeGiftBag.value = false;
+          buyer.value = { name: '', phone: '', notes: '' };
+          orderCompleted.value = false;
+        };
+
+        const saveToLocalStorage = () => {
+          localStorage.setItem('micasitapp_lists', JSON.stringify(lists.value));
+        };
+
+        const loadFromLocalStorage = () => {
+          const saved = localStorage.getItem('micasitapp_lists');
+          if (saved) {
+            try { lists.value = JSON.parse(saved); } catch (e) {}
+          }
+        };
+
+        const refreshIcons = () => {
+          setTimeout(() => {
+            if (window.lucide) window.lucide.createIcons();
+          }, 50);
+        };
+
+        onMounted(() => {
+          loadFromLocalStorage();
+          refreshIcons();
+        });
+
+        updated(() => {
+          refreshIcons();
+        });
+
+        return {
+          isAdmin,
+          lists,
+          selectedListId,
+          activeList,
+          availableProducts,
+          selectedIds,
+          includeGiftBag,
+          giftBagPrice,
+          paymentMethod,
+          paymentMethods,
+          newProduct,
+          newList,
+          showNewListModal,
+          buyer,
+          subtotal,
+          total,
+          orderCompleted,
+          lastOrder,
+          toggleSelect,
+          addProduct,
+          createList,
+          confirmOrder,
+          resetOrder
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
