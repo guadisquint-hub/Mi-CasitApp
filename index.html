@@ -23,7 +23,7 @@
 <body class="bg-gradient-pastel min-h-screen text-slate-700 pb-12">
   <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60">
     
-    <!-- Encabezado -->
+    <!-- ENCABEZADO -->
     <header class="p-5 pb-3 flex justify-between items-center border-b border-pink-100 bg-white/70 backdrop-blur-md sticky top-0 z-30">
       <div class="flex items-center gap-2">
         <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pink-300 to-purple-300 flex items-center justify-center shadow-sm text-white font-bold">
@@ -35,16 +35,17 @@
         </div>
       </div>
       
-      <button @click="isAdmin = !isAdmin" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm border"
+      <!-- BOTÓN MODO TIENDA / FAMILIA CON PIN -->
+      <button @click="handleAdminToggle" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm border"
               :class="isAdmin ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-pink-100 text-pink-700 border-pink-200'">
         <span>{{ isAdmin ? '⚙️ Modo Tienda' : '❤️ Modo Familia' }}</span>
       </button>
     </header>
 
-    <!-- Contenido -->
+    <!-- CONTENIDO -->
     <main class="flex-1 p-4">
 
-      <!-- CONFIRMACIÓN -->
+      <!-- CONFIRMACIÓN DE PEDIDO -->
       <section v-if="orderCompleted" class="space-y-4 text-center py-6">
         <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-500 text-3xl shadow-inner">
           ✓
@@ -53,20 +54,30 @@
         <p class="text-sm text-slate-600 px-4">Hemos reservado los regalos para <strong>{{ activeList.childName }}</strong>.</p>
         
         <div class="bg-white p-4 rounded-2xl shadow-sm text-left border border-slate-100 text-xs space-y-2">
-          <p class="font-bold border-b pb-1">Resumen del pedido:</p>
+          <p class="font-bold border-b pb-1 text-slate-800">Resumen del pedido:</p>
           <p><span class="font-semibold">Cliente:</span> {{ lastOrder.buyerName }} ({{ lastOrder.phone }})</p>
           <p><span class="font-semibold">Pago:</span> {{ lastOrder.paymentMethod }}</p>
+          
+          <!-- Datos de Facturación Legal -->
+          <div v-if="lastOrder.needInvoice" class="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-0.5 mt-2">
+            <p class="font-bold text-purple-600 text-[11px]">🧾 Requiere Factura Legal:</p>
+            <p><span class="font-semibold">RUC / C.I.:</span> {{ lastOrder.ruc }}</p>
+            <p><span class="font-semibold">Razón Social:</span> {{ lastOrder.invoiceName }}</p>
+          </div>
+
           <p v-if="lastOrder.notes"><span class="font-semibold">Nota:</span> {{ lastOrder.notes }}</p>
+          
           <div class="border-t pt-2 space-y-1">
             <div v-for="item in lastOrder.items" :key="item.id" class="flex justify-between">
               <span>{{ item.name }}</span>
               <span class="font-bold">₲{{ item.price.toLocaleString() }}</span>
             </div>
             <div v-if="lastOrder.giftBag" class="flex justify-between text-pink-600">
-              <span>Bolsa de regalo</span>
+              <span>Bolsa de regalo de lujo</span>
               <span class="font-bold">₲{{ giftBagPrice.toLocaleString() }}</span>
             </div>
           </div>
+
           <div class="border-t pt-2 flex justify-between font-bold text-sm text-slate-800">
             <span>Total:</span>
             <span class="text-pink-600">₲{{ lastOrder.total.toLocaleString() }}</span>
@@ -78,7 +89,7 @@
         </button>
       </section>
 
-      <!-- MODO LISTAS -->
+      <!-- MODO NORMAL (LISTAS Y COMPRA) -->
       <template v-else>
 
         <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between">
@@ -103,7 +114,7 @@
           <p class="text-xs text-slate-600 mt-1">Selecciona los regalos que deseas obsequiar</p>
         </div>
 
-        <!-- FORMULARIO AGREGAR (ADMIN) -->
+        <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
         <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
           <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
           <div class="grid grid-cols-3 gap-2">
@@ -149,24 +160,26 @@
           </div>
         </div>
 
-        <!-- COMPRA -->
+        <!-- SECCIÓN DE CHECKOUT / COMPRA -->
         <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4">
           <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
             <span>Tu Selección ({{ selectedIds.length }})</span>
             <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
           </h3>
 
+          <!-- Bolsa de Regalo (Producto adicional con costo) -->
           <div class="flex items-center justify-between bg-pink-50/80 p-3 rounded-2xl border border-pink-100">
             <div class="flex items-center gap-2.5">
               <span class="text-xl">🛍️</span>
               <div>
-                <p class="font-bold text-xs text-slate-800">Agregar Bolsa de Regalo</p>
+                <p class="font-bold text-xs text-slate-800">Agregar Bolsa de Regalo Especial</p>
                 <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }}</p>
               </div>
             </div>
             <input type="checkbox" v-model="includeGiftBag" class="w-5 h-5 accent-pink-500 cursor-pointer">
           </div>
 
+          <!-- Método de Pago -->
           <div>
             <label class="text-[11px] font-bold text-slate-500 block mb-1">Método de Pago</label>
             <div class="grid grid-cols-3 gap-2">
@@ -179,20 +192,38 @@
             </div>
           </div>
 
+          <!-- DATOS DEL COMPRADOR -->
           <div class="space-y-2">
             <input v-model="buyer.name" type="text" placeholder="Tu Nombre / Apellido (ej. Tía María)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
             <input v-model="buyer.phone" type="tel" placeholder="Teléfono de Contacto" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+            
+            <!-- SECCIÓN FACTURA LEGAL -->
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
+                  <span>🧾 Necesito Factura Legal</span>
+                </label>
+                <input type="checkbox" v-model="buyer.needInvoice" class="w-4 h-4 accent-purple-500 cursor-pointer">
+              </div>
+
+              <div v-if="buyer.needInvoice" class="space-y-2 pt-1 border-t border-slate-200">
+                <input v-model="buyer.ruc" type="text" placeholder="RUC / C.I." class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
+                <input v-model="buyer.invoiceName" type="text" placeholder="Razón Social / Denominación" class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
+              </div>
+            </div>
+
             <input v-model="buyer.notes" type="text" placeholder="Mensaje / dedicatoria (opcional)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
           </div>
 
+          <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
           <div class="pt-2 border-t flex items-center justify-between">
             <div>
               <span class="text-[10px] text-slate-400 font-bold uppercase block">Total a pagar</span>
               <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
             </div>
             <button @click="confirmOrder" 
-                    :disabled="!buyer.name || !buyer.phone"
-                    class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md disabled:opacity-40">
+                    :disabled="!buyer.name || !buyer.phone || (buyer.needInvoice && (!buyer.ruc || !buyer.invoiceName))"
+                    class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md disabled:opacity-40 transition-all">
               Confirmar Regalo
             </button>
           </div>
@@ -202,7 +233,21 @@
 
     </main>
 
-    <!-- MODAL -->
+    <!-- MODAL PARA INGRESAR PIN DE ADMIN -->
+    <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl text-center">
+        <h3 class="font-bold text-base text-slate-800">Acceso Administrador</h3>
+        <p class="text-xs text-slate-500">Ingresa la clave para acceder al Modo Tienda:</p>
+        <input v-model="pinInput" type="password" placeholder="PIN de acceso" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-base border-0 outline-none focus:ring-2 focus:ring-purple-300">
+        <p v-if="pinError" class="text-xs text-red-500 font-semibold">⚠️ Clave incorrecta</p>
+        <div class="flex gap-2 pt-1">
+          <button @click="showPinModal = false; pinInput = ''; pinError = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
+          <button @click="verifyPin" class="flex-1 py-2 bg-purple-500 text-white font-bold text-xs rounded-xl">Entrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CREACIÓN DE NUEVA LISTA -->
     <div v-if="showNewListModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl">
         <h3 class="font-bold text-base text-slate-800">Crear Nueva Lista</h3>
@@ -229,6 +274,11 @@
     createApp({
       setup() {
         const isAdmin = ref(false);
+        const adminPin = '1234'; // PIN para acceder al Modo Tienda (puedes cambiarlo aquí)
+        const showPinModal = ref(false);
+        const pinInput = ref('');
+        const pinError = ref(false);
+
         const giftBagPrice = ref(10000);
         const showNewListModal = ref(false);
 
@@ -260,7 +310,14 @@
 
         const newList = ref({ childName: '', event: '' });
         const newProduct = ref({ name: '', price: null, emoji: '', desc: '' });
-        const buyer = ref({ name: '', phone: '', notes: '' });
+        const buyer = ref({ 
+          name: '', 
+          phone: '', 
+          needInvoice: false, 
+          ruc: '', 
+          invoiceName: '', 
+          notes: '' 
+        });
 
         const activeList = computed(() => {
           return lists.value.find(l => l.id === selectedListId.value) || lists.value[0];
@@ -279,6 +336,27 @@
         const total = computed(() => {
           return subtotal.value + (includeGiftBag.value ? giftBagPrice.value : 0);
         });
+
+        // Control de PIN y Seguridad
+        const handleAdminToggle = () => {
+          if (isAdmin.value) {
+            isAdmin.value = false; // Salir de Modo Tienda libremente
+          } else {
+            showPinModal.value = true;
+            pinInput.value = '';
+            pinError.value = false;
+          }
+        };
+
+        const verifyPin = () => {
+          if (pinInput.value === adminPin) {
+            isAdmin.value = true;
+            showPinModal.value = false;
+            pinError.value = false;
+          } else {
+            pinError.value = true;
+          }
+        };
 
         const toggleSelect = (id) => {
           const index = selectedIds.value.indexOf(id);
@@ -320,9 +398,13 @@
 
         const confirmOrder = () => {
           const itemsBought = activeList.value.products.filter(p => selectedIds.value.includes(p.id));
+          
           lastOrder.value = {
             buyerName: buyer.value.name,
             phone: buyer.value.phone,
+            needInvoice: buyer.value.needInvoice,
+            ruc: buyer.value.ruc,
+            invoiceName: buyer.value.invoiceName,
             notes: buyer.value.notes,
             items: itemsBought,
             giftBag: includeGiftBag.value,
@@ -343,7 +425,7 @@
         const resetOrder = () => {
           selectedIds.value = [];
           includeGiftBag.value = false;
-          buyer.value = { name: '', phone: '', notes: '' };
+          buyer.value = { name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' };
           orderCompleted.value = false;
         };
 
@@ -364,6 +446,11 @@
 
         return {
           isAdmin,
+          showPinModal,
+          pinInput,
+          pinError,
+          handleAdminToggle,
+          verifyPin,
           lists,
           selectedListId,
           activeList,
