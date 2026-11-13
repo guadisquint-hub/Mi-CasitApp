@@ -293,7 +293,9 @@
         </div>
         <div class="flex gap-2 pt-2">
           <button @click="showNewListModal = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
-          <button @click="createList" :disabled="saving" class="flex-1 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl">Crear</button>
+          <button @click="createList" :disabled="saving" class="flex-1 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl">
+            {{ saving ? 'Creando...' : 'Crear' }}
+          </button>
         </div>
       </div>
     </div>
@@ -305,14 +307,13 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // ⚠️ REEMPLAZA ESTOS DATOS CON LOS DE TU PROYECTO DE FIREBASE ⚠️
     const firebaseConfig = {
-      apiKey: "TU_API_KEY",
-      authDomain: "TU_PROYECTO.firebaseapp.com",
-      projectId: "TU_PROJECT_ID",
-      storageBucket: "TU_PROYECTO.appspot.com",
-      messagingSenderId: "TU_SENDER_ID",
-      appId: "TU_APP_ID"
+      apiKey: "AIzaSyDaqmB4gXyefAAJTtYl6Hm2xgami0rul2w",
+      authDomain: "mi-casitapp-eb48a.firebaseapp.com",
+      projectId: "mi-casitapp-eb48a",
+      storageBucket: "mi-casitapp-eb48a.firebasestorage.app",
+      messagingSenderId: "394584463249",
+      appId: "1:394584463249:web:6394e5886e1e4f16ec6c30"
     };
 
     const firebaseApp = initializeApp(firebaseConfig);
@@ -325,7 +326,7 @@
         const loading = ref(true);
         const saving = ref(false);
         const isAdmin = ref(false);
-        const adminPin = '1234'; // Cambia 1234 por la clave que quieras
+        const adminPin = '1234'; // Cambia 1234 por tu clave
         const showPinModal = ref(false);
         const pinInput = ref('');
         const pinError = ref(false);
@@ -408,12 +409,16 @@
 
         // CREAR NUEVA LISTA EN FIRESTORE
         const createList = async () => {
-          if (!newList.value.childName) return;
+          const name = newList.value.childName.trim();
+          if (!name) {
+            alert("Por favor escribe el nombre del cumpleañero/a.");
+            return;
+          }
           saving.value = true;
           try {
             const docRef = await addDoc(collection(db, "wishlists"), {
-              childName: newList.value.childName,
-              event: newList.value.event || 'Evento Especial',
+              childName: name,
+              event: newList.value.event.trim() || 'Evento Especial',
               products: [],
               createdAt: Date.now()
             });
@@ -421,7 +426,8 @@
             newList.value = { childName: '', event: '' };
             showNewListModal.value = false;
           } catch (e) {
-            alert("Error al crear lista: " + e.message);
+            console.error(e);
+            alert("No se pudo guardar en Firebase: " + e.message);
           } finally {
             saving.value = false;
           }
@@ -429,15 +435,18 @@
 
         // AGREGAR PRODUCTO EN FIRESTORE
         const addProduct = async () => {
-          if (!newProduct.value.name || !newProduct.value.price || !activeList.value) return;
+          if (!newProduct.value.name || !newProduct.value.price || !activeList.value) {
+            alert("Completa el nombre y el precio del regalo.");
+            return;
+          }
           saving.value = true;
           try {
             const updatedProducts = [
               ...(activeList.value.products || []),
               {
                 id: Date.now(),
-                name: newProduct.value.name,
-                price: newProduct.value.price,
+                name: newProduct.value.name.trim(),
+                price: Number(newProduct.value.price),
                 emoji: newProduct.value.emoji || '🎁',
                 desc: newProduct.value.desc || '',
                 purchased: false
@@ -476,10 +485,8 @@
               createdAt: Date.now()
             };
 
-            // Guardar pedido en la colección 'orders'
             await addDoc(collection(db, "orders"), orderData);
 
-            // Marcar productos como comprados en 'wishlists'
             const updatedProducts = activeList.value.products.map(p => {
               if (selectedIds.value.includes(p.id)) {
                 return { ...p, purchased: true };
@@ -507,7 +514,7 @@
           orderCompleted.value = false;
         };
 
-        // ESCUCHAR CAMBIOS EN TIEMPO REAL DESDE FIREBASE
+        // ESCUCHAR CAMBIOS EN TIEMPO REAL
         onMounted(() => {
           const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
           onSnapshot(qLists, (snapshot) => {
@@ -518,6 +525,7 @@
             loading.value = false;
           }, (error) => {
             console.error("Error conectando a Firebase:", error);
+            alert("Error de conexión con Firestore: " + error.message);
             loading.value = false;
           });
 
