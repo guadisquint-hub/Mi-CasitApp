@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
-  <!-- Vue 3 (CDN Estable) -->
+  <!-- Vue 3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
   <style>
     body { font-family: 'Quicksand', sans-serif; }
@@ -31,7 +31,7 @@
         </div>
         <div>
           <h1 class="text-xl font-bold tracking-tight text-pink-600 leading-none">Mi CasitApp</h1>
-          <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Tienda de Regalos</span>
+          <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">La Casita by AGM</span>
         </div>
       </div>
       
@@ -42,8 +42,14 @@
       </button>
     </header>
 
+    <!-- PANTALLA DE CARGA INICIAL -->
+    <div v-if="loading" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+      <div class="text-4xl animate-bounce mb-2">🎁</div>
+      <p class="text-sm font-bold text-pink-600">Cargando listas de deseos...</p>
+    </div>
+
     <!-- CONTENIDO -->
-    <main class="flex-1 p-4">
+    <main v-else class="flex-1 p-4">
 
       <!-- CONFIRMACIÓN DE PEDIDO -->
       <section v-if="orderCompleted" class="space-y-4 text-center py-6">
@@ -92,153 +98,179 @@
       <!-- MODO NORMAL (LISTAS Y COMPRA) -->
       <template v-else>
 
+        <!-- SELECTOR DE LISTA -->
         <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between">
           <div class="flex-1">
             <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">Lista actual</label>
-            <select v-model="selectedListId" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
+            <select v-if="lists.length > 0" v-model="selectedListId" @change="selectedIds = []" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
               <option v-for="list in lists" :key="list.id" :value="list.id">
                 {{ list.childName }} ({{ list.event }})
               </option>
             </select>
+            <p v-else class="text-xs text-slate-500 font-semibold py-1">Aún no hay listas creadas</p>
           </div>
           <button v-if="isAdmin" @click="showNewListModal = true" class="ml-2 p-2.5 bg-pink-500 text-white rounded-xl shadow-md text-sm font-bold">
             + Nueva
           </button>
         </div>
 
-        <div class="bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 p-5 rounded-3xl shadow-sm mb-5 text-slate-800">
-          <span class="bg-white/70 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase">
-            {{ activeList.event }}
-          </span>
-          <h2 class="text-2xl font-bold mt-2 leading-tight">Lista de {{ activeList.childName }}</h2>
-          <p class="text-xs text-slate-600 mt-1">Selecciona los regalos que deseas obsequiar</p>
-        </div>
-
-        <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
-        <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
-          <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <input v-model="newProduct.emoji" type="text" placeholder="Emoji 🎁" class="p-2 bg-slate-50 rounded-xl text-center border-0 text-lg">
-            <input v-model="newProduct.name" type="text" placeholder="Nombre" class="col-span-2 p-2 bg-slate-50 rounded-xl border-0 text-sm">
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <input v-model.number="newProduct.price" type="number" placeholder="Precio (₲)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
-            <input v-model="newProduct.desc" type="text" placeholder="Detalle (opcional)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
-          </div>
-          <button @click="addProduct" class="w-full py-2.5 bg-purple-500 text-white font-bold text-xs rounded-xl shadow-sm">
-            Añadir a la lista
-          </button>
-        </div>
-
-        <!-- PRODUCTOS -->
-        <div class="space-y-3 mb-6">
-          <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 px-1">
-            Regalos Disponibles ({{ availableProducts.length }})
-          </h3>
-
-          <div v-if="availableProducts.length === 0" class="text-center py-8 bg-white/60 rounded-3xl border border-dashed border-slate-300">
-            <p class="text-3xl mb-1">🎉</p>
-            <p class="text-sm font-bold text-slate-500">¡Todos los regalos han sido reservados!</p>
+        <!-- SI HAY LISTA ACTIVA -->
+        <template v-if="activeList">
+          <div class="bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 p-5 rounded-3xl shadow-sm mb-5 text-slate-800">
+            <span class="bg-white/70 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase">
+              {{ activeList.event }}
+            </span>
+            <h2 class="text-2xl font-bold mt-2 leading-tight">Lista de {{ activeList.childName }}</h2>
+            <p class="text-xs text-slate-600 mt-1">Selecciona los regalos que deseas obsequiar</p>
           </div>
 
-          <div v-for="product in availableProducts" :key="product.id" 
-               class="bg-white/80 p-3.5 rounded-2xl border border-white shadow-sm flex items-center gap-3">
-            <div class="w-14 h-14 bg-pink-100/70 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
-              {{ product.emoji || '🎁' }}
+          <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
+          <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
+            <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
+            <div class="grid grid-cols-3 gap-2">
+              <input v-model="newProduct.emoji" type="text" placeholder="Emoji 🎁" class="p-2 bg-slate-50 rounded-xl text-center border-0 text-lg">
+              <input v-model="newProduct.name" type="text" placeholder="Nombre del regalo" class="col-span-2 p-2 bg-slate-50 rounded-xl border-0 text-sm">
             </div>
-            <div class="flex-1 min-w-0">
-              <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
-              <p class="text-xs text-slate-500 truncate">{{ product.desc || 'Sin detalle' }}</p>
-              <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
+            <div class="grid grid-cols-2 gap-2">
+              <input v-model.number="newProduct.price" type="number" placeholder="Precio (₲)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
+              <input v-model="newProduct.desc" type="text" placeholder="Detalle (opcional)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
             </div>
-            
-            <button @click="toggleSelect(product.id)" 
-                    class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold"
-                    :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
-              ✓
+            <button @click="addProduct" :disabled="saving" class="w-full py-2.5 bg-purple-500 text-white font-bold text-xs rounded-xl shadow-sm disabled:opacity-50">
+              {{ saving ? 'Guardando...' : 'Añadir a la lista' }}
             </button>
           </div>
-        </div>
 
-        <!-- SECCIÓN DE CHECKOUT / COMPRA -->
-        <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4">
-          <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
-            <span>Tu Selección ({{ selectedIds.length }})</span>
-            <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
-          </h3>
+          <!-- PRODUCTOS DISPONIBLES -->
+          <div class="space-y-3 mb-6">
+            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 px-1">
+              Regalos Disponibles ({{ availableProducts.length }})
+            </h3>
 
-          <!-- Bolsa de Regalo (Producto adicional con costo) -->
-          <div class="flex items-center justify-between bg-pink-50/80 p-3 rounded-2xl border border-pink-100">
-            <div class="flex items-center gap-2.5">
-              <span class="text-xl">🛍️</span>
-              <div>
-                <p class="font-bold text-xs text-slate-800">Agregar Bolsa de Regalo Especial</p>
-                <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }}</p>
-              </div>
+            <div v-if="availableProducts.length === 0" class="text-center py-8 bg-white/60 rounded-3xl border border-dashed border-slate-300">
+              <p class="text-3xl mb-1">🎉</p>
+              <p class="text-sm font-bold text-slate-500">¡Todos los regalos han sido reservados!</p>
             </div>
-            <input type="checkbox" v-model="includeGiftBag" class="w-5 h-5 accent-pink-500 cursor-pointer">
-          </div>
 
-          <!-- Método de Pago -->
-          <div>
-            <label class="text-[11px] font-bold text-slate-500 block mb-1">Método de Pago</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button v-for="method in paymentMethods" :key="method.id"
-                      @click="paymentMethod = method.id"
-                      class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
-                      :class="paymentMethod === method.id ? 'bg-purple-500 text-white border-purple-500' : 'bg-slate-50 text-slate-600 border-slate-200'">
-                {{ method.name }}
+            <div v-for="product in availableProducts" :key="product.id" 
+                 class="bg-white/80 p-3.5 rounded-2xl border border-white shadow-sm flex items-center gap-3">
+              <div class="w-14 h-14 bg-pink-100/70 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
+                {{ product.emoji || '🎁' }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
+                <p class="text-xs text-slate-500 truncate">{{ product.desc || 'Sin detalle' }}</p>
+                <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
+              </div>
+              
+              <button @click="toggleSelect(product.id)" 
+                      class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold"
+                      :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
+                ✓
               </button>
             </div>
           </div>
 
-          <!-- DATOS DEL COMPRADOR -->
-          <div class="space-y-2">
-            <input v-model="buyer.name" type="text" placeholder="Tu Nombre / Apellido (ej. Tía María)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
-            <input v-model="buyer.phone" type="tel" placeholder="Teléfono de Contacto" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
-            
-            <!-- SECCIÓN FACTURA LEGAL -->
-            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
-              <div class="flex items-center justify-between">
-                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
-                  <span>🧾 Necesito Factura Legal</span>
-                </label>
-                <input type="checkbox" v-model="buyer.needInvoice" class="w-4 h-4 accent-purple-500 cursor-pointer">
+          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE PARA ADMIN) -->
+          <div v-if="isAdmin && listOrders.length > 0" class="bg-purple-50/90 p-4 rounded-3xl border border-purple-200 mb-6 space-y-3">
+            <h3 class="font-bold text-sm text-purple-800">📋 Pedidos Recibidos ({{ listOrders.length }})</h3>
+            <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3 rounded-2xl text-xs space-y-1 shadow-sm border border-purple-100">
+              <div class="flex justify-between font-bold text-slate-800">
+                <span>{{ ord.buyerName }} ({{ ord.phone }})</span>
+                <span class="text-pink-600">₲{{ ord.total.toLocaleString() }}</span>
               </div>
-
-              <div v-if="buyer.needInvoice" class="space-y-2 pt-1 border-t border-slate-200">
-                <input v-model="buyer.ruc" type="text" placeholder="RUC / C.I." class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
-                <input v-model="buyer.invoiceName" type="text" placeholder="Razón Social / Denominación" class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
-              </div>
+              <p class="text-[11px] text-slate-500">Pago: {{ ord.paymentMethod }} <span v-if="ord.giftBag">• 🛍️ Con Bolsa de Regalo</span></p>
+              <p v-if="ord.needInvoice" class="text-[11px] text-purple-600 font-semibold">🧾 Factura: {{ ord.ruc }} - {{ ord.invoiceName }}</p>
+              <p class="text-[11px] text-slate-600 pt-1 border-t">Regalos: {{ ord.items.map(i => i.name).join(', ') }}</p>
             </div>
-
-            <input v-model="buyer.notes" type="text" placeholder="Mensaje / dedicatoria (opcional)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
           </div>
 
-          <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
-          <div class="pt-2 border-t flex items-center justify-between">
+          <!-- SECCIÓN DE CHECKOUT / COMPRA -->
+          <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4">
+            <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
+              <span>Tu Selección ({{ selectedIds.length }})</span>
+              <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
+            </h3>
+
+            <!-- Bolsa de Regalo -->
+            <div class="flex items-center justify-between bg-pink-50/80 p-3 rounded-2xl border border-pink-100">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">🛍️</span>
+                <div>
+                  <p class="font-bold text-xs text-slate-800">Agregar Bolsa de Regalo Especial</p>
+                  <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }}</p>
+                </div>
+              </div>
+              <input type="checkbox" v-model="includeGiftBag" class="w-5 h-5 accent-pink-500 cursor-pointer">
+            </div>
+
+            <!-- Método de Pago -->
             <div>
-              <span class="text-[10px] text-slate-400 font-bold uppercase block">Total a pagar</span>
-              <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
+              <label class="text-[11px] font-bold text-slate-500 block mb-1">Método de Pago</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button v-for="method in paymentMethods" :key="method.id"
+                        @click="paymentMethod = method.id"
+                        class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
+                        :class="paymentMethod === method.id ? 'bg-purple-500 text-white border-purple-500' : 'bg-slate-50 text-slate-600 border-slate-200'">
+                  {{ method.name }}
+                </button>
+              </div>
             </div>
-            <button @click="confirmOrder" 
-                    :disabled="!buyer.name || !buyer.phone || (buyer.needInvoice && (!buyer.ruc || !buyer.invoiceName))"
-                    class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md disabled:opacity-40 transition-all">
-              Confirmar Regalo
-            </button>
+
+            <!-- DATOS DEL COMPRADOR -->
+            <div class="space-y-2">
+              <input v-model="buyer.name" type="text" placeholder="Tu Nombre / Apellido (ej. Tía María)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+              <input v-model="buyer.phone" type="tel" placeholder="Teléfono de Contacto" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+              
+              <!-- SECCIÓN FACTURA LEGAL -->
+              <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
+                    <span>🧾 Necesito Factura Legal</span>
+                  </label>
+                  <input type="checkbox" v-model="buyer.needInvoice" class="w-4 h-4 accent-purple-500 cursor-pointer">
+                </div>
+
+                <div v-if="buyer.needInvoice" class="space-y-2 pt-1 border-t border-slate-200">
+                  <input v-model="buyer.ruc" type="text" placeholder="RUC / C.I." class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
+                  <input v-model="buyer.invoiceName" type="text" placeholder="Razón Social / Denominación" class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
+                </div>
+              </div>
+
+              <input v-model="buyer.notes" type="text" placeholder="Mensaje / dedicatoria (opcional)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+            </div>
+
+            <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
+            <div class="pt-2 border-t flex items-center justify-between">
+              <div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase block">Total a pagar</span>
+                <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
+              </div>
+              <button @click="confirmOrder" 
+                      :disabled="saving || !buyer.name || !buyer.phone || (buyer.needInvoice && (!buyer.ruc || !buyer.invoiceName))"
+                      class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md disabled:opacity-40 transition-all">
+                {{ saving ? 'Procesando...' : 'Confirmar Regalo' }}
+              </button>
+            </div>
           </div>
+        </template>
+
+        <!-- SI NO HAY NINGUNA LISTA TODAVÍA -->
+        <div v-else class="text-center py-12 bg-white/70 rounded-3xl p-6 space-y-3">
+          <p class="text-4xl">🎈</p>
+          <h3 class="font-bold text-base text-slate-700">¡Bienvenido a Mi CasitApp!</h3>
+          <p class="text-xs text-slate-500">Para crear la primera lista de deseos, ingresa al <strong>Modo Tienda</strong> arriba a la derecha.</p>
         </div>
 
       </template>
 
     </main>
 
-    <!-- MODAL PARA INGRESAR PIN DE ADMIN -->
+    <!-- MODAL PIN ADMIN -->
     <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl text-center">
         <h3 class="font-bold text-base text-slate-800">Acceso Administrador</h3>
         <p class="text-xs text-slate-500">Ingresa la clave para acceder al Modo Tienda:</p>
-        <input v-model="pinInput" type="password" placeholder="PIN de acceso" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-base border-0 outline-none focus:ring-2 focus:ring-purple-300">
+        <input v-model="pinInput" @keyup.enter="verifyPin" type="password" placeholder="PIN de acceso" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-base border-0 outline-none focus:ring-2 focus:ring-purple-300">
         <p v-if="pinError" class="text-xs text-red-500 font-semibold">⚠️ Clave incorrecta</p>
         <div class="flex gap-2 pt-1">
           <button @click="showPinModal = false; pinInput = ''; pinError = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
@@ -261,20 +293,39 @@
         </div>
         <div class="flex gap-2 pt-2">
           <button @click="showNewListModal = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
-          <button @click="createList" class="flex-1 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl">Crear</button>
+          <button @click="createList" :disabled="saving" class="flex-1 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl">Crear</button>
         </div>
       </div>
     </div>
 
   </div>
 
-  <script>
+  <!-- FIREBASE SDK & APP LOGIC -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ⚠️ REEMPLAZA ESTOS DATOS CON LOS DE TU PROYECTO DE FIREBASE ⚠️
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      projectId: "TU_PROJECT_ID",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "TU_SENDER_ID",
+      appId: "TU_APP_ID"
+    };
+
+    const firebaseApp = initializeApp(firebaseConfig);
+    const db = getFirestore(firebaseApp);
+
     const { createApp, ref, computed, onMounted } = Vue;
 
     createApp({
       setup() {
+        const loading = ref(true);
+        const saving = ref(false);
         const isAdmin = ref(false);
-        const adminPin = '2430'; // PIN para acceder al Modo Tienda (puedes cambiarlo aquí)
+        const adminPin = '1234'; // Cambia 1234 por la clave que quieras
         const showPinModal = ref(false);
         const pinInput = ref('');
         const pinError = ref(false);
@@ -282,20 +333,9 @@
         const giftBagPrice = ref(10000);
         const showNewListModal = ref(false);
 
-        const lists = ref([
-          {
-            id: 'list-1',
-            childName: 'Sofía',
-            event: 'Cumpleaños #6',
-            products: [
-              { id: 1, name: 'Muñeca Tela Artesanal', price: 120000, emoji: '🧸', desc: 'Edición especial hecha a mano', purchased: false },
-              { id: 2, name: 'Set de Peluche & Cuaderno', price: 65000, emoji: '🎨', desc: 'Para dibujar y colorear', purchased: false },
-              { id: 3, name: 'Caja Regalo Sorpresa', price: 95000, emoji: '🎁', desc: 'Incluye accesorios variados', purchased: false }
-            ]
-          }
-        ]);
-
-        const selectedListId = ref('list-1');
+        const lists = ref([]);
+        const orders = ref([]);
+        const selectedListId = ref('');
         const selectedIds = ref([]);
         const includeGiftBag = ref(false);
         const paymentMethod = ref('transfer');
@@ -310,24 +350,24 @@
 
         const newList = ref({ childName: '', event: '' });
         const newProduct = ref({ name: '', price: null, emoji: '', desc: '' });
-        const buyer = ref({ 
-          name: '', 
-          phone: '', 
-          needInvoice: false, 
-          ruc: '', 
-          invoiceName: '', 
-          notes: '' 
-        });
+        const buyer = ref({ name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' });
 
         const activeList = computed(() => {
-          return lists.value.find(l => l.id === selectedListId.value) || lists.value[0];
+          return lists.value.find(l => l.id === selectedListId.value) || lists.value[0] || null;
         });
 
         const availableProducts = computed(() => {
-          return activeList.value ? activeList.value.products.filter(p => !p.purchased) : [];
+          if (!activeList.value || !activeList.value.products) return [];
+          return activeList.value.products.filter(p => !p.purchased);
+        });
+
+        const listOrders = computed(() => {
+          if (!activeList.value) return [];
+          return orders.value.filter(o => o.listId === activeList.value.id);
         });
 
         const subtotal = computed(() => {
+          if (!activeList.value || !activeList.value.products) return 0;
           return activeList.value.products
             .filter(p => selectedIds.value.includes(p.id))
             .reduce((sum, p) => sum + p.price, 0);
@@ -337,10 +377,9 @@
           return subtotal.value + (includeGiftBag.value ? giftBagPrice.value : 0);
         });
 
-        // Control de PIN y Seguridad
         const handleAdminToggle = () => {
           if (isAdmin.value) {
-            isAdmin.value = false; // Salir de Modo Tienda libremente
+            isAdmin.value = false;
           } else {
             showPinModal.value = true;
             pinInput.value = '';
@@ -367,59 +406,98 @@
           }
         };
 
-        const addProduct = () => {
-          if (!newProduct.value.name || !newProduct.value.price) return;
-          activeList.value.products.push({
-            id: Date.now(),
-            name: newProduct.value.name,
-            price: newProduct.value.price,
-            emoji: newProduct.value.emoji || '🎁',
-            desc: newProduct.value.desc,
-            purchased: false
-          });
-          newProduct.value = { name: '', price: null, emoji: '', desc: '' };
-          saveToLocalStorage();
-        };
-
-        const createList = () => {
+        // CREAR NUEVA LISTA EN FIRESTORE
+        const createList = async () => {
           if (!newList.value.childName) return;
-          const id = 'list-' + Date.now();
-          lists.value.push({
-            id,
-            childName: newList.value.childName,
-            event: newList.value.event || 'Evento Especial',
-            products: []
-          });
-          selectedListId.value = id;
-          newList.value = { childName: '', event: '' };
-          showNewListModal.value = false;
-          saveToLocalStorage();
+          saving.value = true;
+          try {
+            const docRef = await addDoc(collection(db, "wishlists"), {
+              childName: newList.value.childName,
+              event: newList.value.event || 'Evento Especial',
+              products: [],
+              createdAt: Date.now()
+            });
+            selectedListId.value = docRef.id;
+            newList.value = { childName: '', event: '' };
+            showNewListModal.value = false;
+          } catch (e) {
+            alert("Error al crear lista: " + e.message);
+          } finally {
+            saving.value = false;
+          }
         };
 
-        const confirmOrder = () => {
-          const itemsBought = activeList.value.products.filter(p => selectedIds.value.includes(p.id));
-          
-          lastOrder.value = {
-            buyerName: buyer.value.name,
-            phone: buyer.value.phone,
-            needInvoice: buyer.value.needInvoice,
-            ruc: buyer.value.ruc,
-            invoiceName: buyer.value.invoiceName,
-            notes: buyer.value.notes,
-            items: itemsBought,
-            giftBag: includeGiftBag.value,
-            paymentMethod: paymentMethods.find(m => m.id === paymentMethod.value).name,
-            total: total.value
-          };
+        // AGREGAR PRODUCTO EN FIRESTORE
+        const addProduct = async () => {
+          if (!newProduct.value.name || !newProduct.value.price || !activeList.value) return;
+          saving.value = true;
+          try {
+            const updatedProducts = [
+              ...(activeList.value.products || []),
+              {
+                id: Date.now(),
+                name: newProduct.value.name,
+                price: newProduct.value.price,
+                emoji: newProduct.value.emoji || '🎁',
+                desc: newProduct.value.desc || '',
+                purchased: false
+              }
+            ];
+            await updateDoc(doc(db, "wishlists", activeList.value.id), {
+              products: updatedProducts
+            });
+            newProduct.value = { name: '', price: null, emoji: '', desc: '' };
+          } catch (e) {
+            alert("Error al agregar regalo: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
 
-          activeList.value.products.forEach(p => {
-            if (selectedIds.value.includes(p.id)) {
-              p.purchased = true;
-            }
-          });
+        // CONFIRMAR COMPRA EN TIEMPO REAL
+        const confirmOrder = async () => {
+          if (!activeList.value) return;
+          saving.value = true;
+          try {
+            const itemsBought = activeList.value.products.filter(p => selectedIds.value.includes(p.id));
+            const orderData = {
+              listId: activeList.value.id,
+              childName: activeList.value.childName,
+              buyerName: buyer.value.name,
+              phone: buyer.value.phone,
+              needInvoice: buyer.value.needInvoice,
+              ruc: buyer.value.ruc,
+              invoiceName: buyer.value.invoiceName,
+              notes: buyer.value.notes,
+              items: itemsBought,
+              giftBag: includeGiftBag.value,
+              paymentMethod: paymentMethods.find(m => m.id === paymentMethod.value).name,
+              total: total.value,
+              createdAt: Date.now()
+            };
 
-          orderCompleted.value = true;
-          saveToLocalStorage();
+            // Guardar pedido en la colección 'orders'
+            await addDoc(collection(db, "orders"), orderData);
+
+            // Marcar productos como comprados en 'wishlists'
+            const updatedProducts = activeList.value.products.map(p => {
+              if (selectedIds.value.includes(p.id)) {
+                return { ...p, purchased: true };
+              }
+              return p;
+            });
+
+            await updateDoc(doc(db, "wishlists", activeList.value.id), {
+              products: updatedProducts
+            });
+
+            lastOrder.value = orderData;
+            orderCompleted.value = true;
+          } catch (e) {
+            alert("Error al procesar el regalo: " + e.message);
+          } finally {
+            saving.value = false;
+          }
         };
 
         const resetOrder = () => {
@@ -429,50 +507,33 @@
           orderCompleted.value = false;
         };
 
-        const saveToLocalStorage = () => {
-          localStorage.setItem('micasitapp_lists', JSON.stringify(lists.value));
-        };
-
-        const loadFromLocalStorage = () => {
-          const saved = localStorage.getItem('micasitapp_lists');
-          if (saved) {
-            try { lists.value = JSON.parse(saved); } catch (e) {}
-          }
-        };
-
+        // ESCUCHAR CAMBIOS EN TIEMPO REAL DESDE FIREBASE
         onMounted(() => {
-          loadFromLocalStorage();
+          const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
+          onSnapshot(qLists, (snapshot) => {
+            lists.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (!selectedListId.value && lists.value.length > 0) {
+              selectedListId.value = lists.value[0].id;
+            }
+            loading.value = false;
+          }, (error) => {
+            console.error("Error conectando a Firebase:", error);
+            loading.value = false;
+          });
+
+          const qOrders = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+          onSnapshot(qOrders, (snapshot) => {
+            orders.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          });
         });
 
         return {
-          isAdmin,
-          showPinModal,
-          pinInput,
-          pinError,
-          handleAdminToggle,
-          verifyPin,
-          lists,
-          selectedListId,
-          activeList,
-          availableProducts,
-          selectedIds,
-          includeGiftBag,
-          giftBagPrice,
-          paymentMethod,
-          paymentMethods,
-          newProduct,
-          newList,
-          showNewListModal,
-          buyer,
-          subtotal,
-          total,
-          orderCompleted,
-          lastOrder,
-          toggleSelect,
-          addProduct,
-          createList,
-          confirmOrder,
-          resetOrder
+          loading, saving, isAdmin, showPinModal, pinInput, pinError,
+          handleAdminToggle, verifyPin, lists, selectedListId, activeList,
+          availableProducts, listOrders, selectedIds, includeGiftBag,
+          giftBagPrice, paymentMethod, paymentMethods, newProduct, newList,
+          showNewListModal, buyer, subtotal, total, orderCompleted, lastOrder,
+          toggleSelect, addProduct, createList, confirmOrder, resetOrder
         };
       }
     }).mount('#app');
