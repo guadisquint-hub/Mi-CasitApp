@@ -102,7 +102,7 @@
         <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between">
           <div class="flex-1">
             <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">Lista actual</label>
-            <select v-if="lists.length > 0" v-model="selectedListId" @change="selectedIds = []" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
+            <select v-if="lists.length > 0" v-model="selectedListId" @change="selectedIds = []; validationErrors = []" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
               <option v-for="list in lists" :key="list.id" :value="list.id">
                 {{ list.childName }} ({{ list.event }})
               </option>
@@ -208,6 +208,7 @@
               <label class="text-[11px] font-bold text-slate-500 block mb-1">Método de Pago</label>
               <div class="grid grid-cols-3 gap-2">
                 <button v-for="method in paymentMethods" :key="method.id"
+                        type="button"
                         @click="paymentMethod = method.id"
                         class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
                         :class="paymentMethod === method.id ? 'bg-purple-500 text-white border-purple-500' : 'bg-slate-50 text-slate-600 border-slate-200'">
@@ -217,9 +218,20 @@
             </div>
 
             <!-- DATOS DEL COMPRADOR -->
-            <div class="space-y-2">
-              <input v-model="buyer.name" type="text" placeholder="Tu Nombre / Apellido (ej. Tía María)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
-              <input v-model="buyer.phone" type="tel" placeholder="Teléfono de Contacto" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+            <div class="space-y-2.5">
+              <div>
+                <input v-model="buyer.name" @input="clearError('name')" type="text" placeholder="Tu Nombre / Apellido (ej. Tía María) *" 
+                       class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
+                       :class="missingFields.name ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
+                <p v-if="missingFields.name" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Escribe tu nombre para identificar el regalo</p>
+              </div>
+
+              <div>
+                <input v-model="buyer.phone" @input="clearError('phone')" type="tel" placeholder="Teléfono de Contacto *" 
+                       class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
+                       :class="missingFields.phone ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
+                <p v-if="missingFields.phone" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Ingresa tu número de celular o WhatsApp</p>
+              </div>
               
               <!-- SECCIÓN FACTURA LEGAL -->
               <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
@@ -227,16 +239,35 @@
                   <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
                     <span>🧾 Necesito Factura Legal</span>
                   </label>
-                  <input type="checkbox" v-model="buyer.needInvoice" class="w-4 h-4 accent-purple-500 cursor-pointer">
+                  <input type="checkbox" v-model="buyer.needInvoice" @change="clearInvoiceErrors" class="w-4 h-4 accent-purple-500 cursor-pointer">
                 </div>
 
-                <div v-if="buyer.needInvoice" class="space-y-2 pt-1 border-t border-slate-200">
-                  <input v-model="buyer.ruc" type="text" placeholder="RUC / C.I." class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
-                  <input v-model="buyer.invoiceName" type="text" placeholder="Razón Social / Denominación" class="w-full p-2 bg-white rounded-xl text-xs border border-slate-200 outline-none">
+                <div v-if="buyer.needInvoice" class="space-y-2 pt-1.5 border-t border-slate-200">
+                  <div>
+                    <input v-model="buyer.ruc" @input="clearError('ruc')" type="text" placeholder="RUC / C.I. *" 
+                           class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
+                           :class="missingFields.ruc ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
+                    <p v-if="missingFields.ruc" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Completa el RUC o Cédula de Identidad</p>
+                  </div>
+
+                  <div>
+                    <input v-model="buyer.invoiceName" @input="clearError('invoiceName')" type="text" placeholder="Razón Social / Denominación *" 
+                           class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
+                           :class="missingFields.invoiceName ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
+                    <p v-if="missingFields.invoiceName" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Completa el nombre o Razón Social para la factura</p>
+                  </div>
                 </div>
               </div>
 
               <input v-model="buyer.notes" type="text" placeholder="Mensaje / dedicatoria (opcional)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+            </div>
+
+            <!-- RECUADRO DE RESUMEN DE CAMPOS FALTANTES -->
+            <div v-if="validationErrors.length > 0" class="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 space-y-1">
+              <p class="font-bold">Para confirmar tu regalo, por favor completa:</p>
+              <ul class="list-disc list-inside text-[11px] font-semibold">
+                <li v-for="(err, idx) in validationErrors" :key="idx">{{ err }}</li>
+              </ul>
             </div>
 
             <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
@@ -245,9 +276,9 @@
                 <span class="text-[10px] text-slate-400 font-bold uppercase block">Total a pagar</span>
                 <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
               </div>
-              <button @click="confirmOrder" 
-                      :disabled="saving || !buyer.name || !buyer.phone || (buyer.needInvoice && (!buyer.ruc || !buyer.invoiceName))"
-                      class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md disabled:opacity-40 transition-all">
+              <button type="button" @click="confirmOrder" 
+                      :disabled="saving"
+                      class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 active:scale-95 transition-all">
                 {{ saving ? 'Procesando...' : 'Confirmar Regalo' }}
               </button>
             </div>
@@ -326,7 +357,7 @@
         const loading = ref(true);
         const saving = ref(false);
         const isAdmin = ref(false);
-        const adminPin = '1234'; // Cambia 1234 por tu clave
+        const adminPin = '21162430';
         const showPinModal = ref(false);
         const pinInput = ref('');
         const pinError = ref(false);
@@ -342,6 +373,14 @@
         const paymentMethod = ref('transfer');
         const orderCompleted = ref(false);
         const lastOrder = ref(null);
+
+        const validationErrors = ref([]);
+        const missingFields = ref({
+          name: false,
+          phone: false,
+          ruc: false,
+          invoiceName: false
+        });
 
         const paymentMethods = [
           { id: 'transfer', name: 'Transferencia' },
@@ -377,6 +416,20 @@
         const total = computed(() => {
           return subtotal.value + (includeGiftBag.value ? giftBagPrice.value : 0);
         });
+
+        const clearError = (field) => {
+          missingFields.value[field] = false;
+          if (!missingFields.value.name && !missingFields.value.phone && !missingFields.value.ruc && !missingFields.value.invoiceName) {
+            validationErrors.value = [];
+          }
+        };
+
+        const clearInvoiceErrors = () => {
+          if (!buyer.value.needInvoice) {
+            missingFields.value.ruc = false;
+            missingFields.value.invoiceName = false;
+          }
+        };
 
         const handleAdminToggle = () => {
           if (isAdmin.value) {
@@ -463,21 +516,50 @@
           }
         };
 
-        // CONFIRMAR COMPRA EN TIEMPO REAL
+        // CONFIRMAR COMPRA EN TIEMPO REAL CON VALIDACIÓN VISUAL
         const confirmOrder = async () => {
           if (!activeList.value) return;
+
+          const errors = [];
+          missingFields.value = { name: false, phone: false, ruc: false, invoiceName: false };
+
+          const buyerName = buyer.value.name.trim();
+          const buyerPhone = buyer.value.phone.trim();
+
+          if (!buyerName) {
+            missingFields.value.name = true;
+            errors.push("Tu Nombre o Apellido");
+          }
+          if (!buyerPhone) {
+            missingFields.value.phone = true;
+            errors.push("Tu Teléfono de Contacto");
+          }
+          if (buyer.value.needInvoice) {
+            if (!buyer.value.ruc.trim()) {
+              missingFields.value.ruc = true;
+              errors.push("El RUC o Cédula de Identidad");
+            }
+            if (!buyer.value.invoiceName.trim()) {
+              missingFields.value.invoiceName = true;
+              errors.push("La Razón Social o Denominación");
+            }
+          }
+
+          validationErrors.value = errors;
+          if (errors.length > 0) return;
+
           saving.value = true;
           try {
             const itemsBought = activeList.value.products.filter(p => selectedIds.value.includes(p.id));
             const orderData = {
               listId: activeList.value.id,
               childName: activeList.value.childName,
-              buyerName: buyer.value.name,
-              phone: buyer.value.phone,
+              buyerName: buyerName,
+              phone: buyerPhone,
               needInvoice: buyer.value.needInvoice,
-              ruc: buyer.value.ruc,
-              invoiceName: buyer.value.invoiceName,
-              notes: buyer.value.notes,
+              ruc: buyer.value.ruc.trim(),
+              invoiceName: buyer.value.invoiceName.trim(),
+              notes: buyer.value.notes.trim(),
               items: itemsBought,
               giftBag: includeGiftBag.value,
               paymentMethod: paymentMethods.find(m => m.id === paymentMethod.value).name,
@@ -501,7 +583,8 @@
             lastOrder.value = orderData;
             orderCompleted.value = true;
           } catch (e) {
-            alert("Error al procesar el regalo: " + e.message);
+            console.error(e);
+            alert("Error al confirmar el regalo en Firebase: " + e.message);
           } finally {
             saving.value = false;
           }
@@ -510,6 +593,8 @@
         const resetOrder = () => {
           selectedIds.value = [];
           includeGiftBag.value = false;
+          validationErrors.value = [];
+          missingFields.value = { name: false, phone: false, ruc: false, invoiceName: false };
           buyer.value = { name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' };
           orderCompleted.value = false;
         };
@@ -541,6 +626,7 @@
           availableProducts, listOrders, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, paymentMethods, newProduct, newList,
           showNewListModal, buyer, subtotal, total, orderCompleted, lastOrder,
+          validationErrors, missingFields, clearError, clearInvoiceErrors,
           toggleSelect, addProduct, createList, confirmOrder, resetOrder
         };
       }
