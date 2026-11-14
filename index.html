@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
   <!-- Vue 3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
-  <!-- Lector de código de barras por cámara -->
+  <!-- Lector de código de barras / QR por cámara -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     body { font-family: 'Quicksand', sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -121,7 +121,7 @@
             </button>
 
             <!-- BOTÓN PANEL DE PADRES / CUMPLEAÑERO -->
-            <button @click="openParentPanel" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border"
+            <button v-if="activeList" @click="openParentPanel" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border"
                     :class="isParentUnlocked ? 'bg-pink-500 text-white border-pink-500' : 'bg-pink-100 text-pink-700 border-pink-200'">
               <span>👨‍👩‍👧 {{ t.familyMode }}</span>
             </button>
@@ -130,20 +130,27 @@
       </div>
 
       <!-- SELECTOR DE IDIOMA (ES / DE / EN) -->
-      <div class="flex items-center justify-end gap-1.5 pt-1 border-t border-pink-50">
-        <span class="text-[10px] text-slate-400 font-bold uppercase mr-1">{{ t.languageLabel }}:</span>
-        <button @click="setLang('es')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
-                :class="lang === 'es' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
-          🇪🇸 ES
+      <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-pink-50">
+        <button v-if="!isAdmin && activeList" @click="exitCurrentGuestList" class="text-[10px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1">
+          <span>🔑 {{ t.changeCodeBtn }}</span>
         </button>
-        <button @click="setLang('de')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
-                :class="lang === 'de' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
-          🇩🇪 DE
-        </button>
-        <button @click="setLang('en')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
-                :class="lang === 'en' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
-          🇺🇸 EN
-        </button>
+        <span v-else></span>
+
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-slate-400 font-bold uppercase mr-1">{{ t.languageLabel }}:</span>
+          <button @click="setLang('es')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
+                  :class="lang === 'es' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
+            🇪🇸 ES
+          </button>
+          <button @click="setLang('de')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
+                  :class="lang === 'de' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
+            🇩🇪 DE
+          </button>
+          <button @click="setLang('en')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
+                  :class="lang === 'en' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
+            🇺🇸 EN
+          </button>
+        </div>
       </div>
     </header>
 
@@ -218,11 +225,11 @@
         </button>
       </section>
 
-      <!-- MODO NORMAL (LISTAS Y COMPRA) -->
+      <!-- MODO NORMAL -->
       <template v-else>
 
-        <!-- SELECTOR DE LISTA -->
-        <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between gap-2">
+        <!-- SELECTOR DE LISTA (EXCLUSIVO PARA MODO TIENDA) -->
+        <div v-if="isAdmin" class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between gap-2">
           <div class="flex-1 min-w-0">
             <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">{{ t.currentListLabel }}</label>
             <select v-if="lists.length > 0" v-model="selectedListId" @change="onListChange" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
@@ -232,8 +239,8 @@
             </select>
             <p v-else class="text-xs text-slate-500 font-semibold py-1">{{ t.noListsYet }}</p>
           </div>
-          <div v-if="isAdmin" class="flex gap-1.5 flex-shrink-0">
-            <button @click="showQrModal = true" title="Mostrar QR de descarga e instalación" class="p-2.5 bg-purple-100 text-purple-700 rounded-xl shadow-sm text-xs font-bold border border-purple-200">
+          <div class="flex gap-1.5 flex-shrink-0">
+            <button @click="showQrModal = true" title="Mostrar QR general de la app" class="p-2.5 bg-purple-100 text-purple-700 rounded-xl shadow-sm text-xs font-bold border border-purple-200">
               📱 QR
             </button>
             <button @click="showNewListModal = true" class="p-2.5 bg-pink-500 text-white rounded-xl shadow-md text-xs font-bold">
@@ -265,9 +272,12 @@
               </button>
             </div>
 
-            <!-- PIN DE FAMILIA VISIBLE SOLO PARA LA TIENDA -->
-            <div v-if="isAdmin" class="pt-2 border-t border-white/50 flex items-center justify-between text-[11px]">
-              <span class="text-slate-700 font-semibold">🔑 PIN padres: <strong class="bg-white px-2 py-0.5 rounded-md text-pink-600 tracking-widest">{{ activeList.familyPin || '1234' }}</strong></span>
+            <!-- CÓDIGO DE LISTA Y PIN DE FAMILIA VISIBLE SOLO PARA LA TIENDA -->
+            <div v-if="isAdmin" class="pt-2 border-t border-white/50 flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+              <div class="flex items-center gap-2">
+                <span class="text-slate-700 font-semibold">🎟️ Código: <strong class="bg-white px-2 py-0.5 rounded-md text-purple-700 tracking-wider uppercase">{{ activeList.accessCode || activeList.id.slice(0, 6).toUpperCase() }}</strong></span>
+                <span class="text-slate-700 font-semibold">🔑 PIN: <strong class="bg-white px-2 py-0.5 rounded-md text-pink-600 tracking-widest">{{ activeList.familyPin || '1234' }}</strong></span>
+              </div>
               <button @click="shareListWhatsappAdmin" class="text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg font-bold">
                 📲 Pasar a Mamá
               </button>
@@ -628,11 +638,34 @@
           </div>
         </template>
 
-        <!-- SI NO HAY NINGUNA LISTA TODAVÍA -->
-        <div v-else class="text-center py-12 bg-white/70 rounded-3xl p-6 space-y-3">
-          <p class="text-4xl">🎈</p>
-          <h3 class="font-bold text-base text-slate-700">{{ t.welcomeTitle }}</h3>
-          <p class="text-xs text-slate-500">{{ t.welcomeSub }}</p>
+        <!-- PANTALLA PRIVADA CUANDO EL INVITADO ENTRA SIN QR/ENLACE ESPECÍFICO -->
+        <div v-else class="bg-white/85 backdrop-blur-md rounded-3xl p-6 shadow-md border border-white text-center space-y-4 mt-2">
+          <div class="w-16 h-16 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center mx-auto text-3xl shadow-inner">
+            🔒
+          </div>
+          <div class="space-y-1">
+            <h3 class="font-bold text-lg text-slate-800">{{ t.privateAccessTitle }}</h3>
+            <p class="text-xs text-slate-500 leading-relaxed">{{ t.privateAccessSub }}</p>
+          </div>
+
+          <div class="space-y-2.5 pt-1">
+            <input v-model="accessCodeInput"
+                   @keyup.enter="openListByCode"
+                   type="text"
+                   :placeholder="t.accessCodePlaceholder"
+                   class="w-full p-3 bg-slate-50 rounded-2xl text-center font-bold text-sm uppercase tracking-widest border border-pink-200 outline-none focus:ring-2 focus:ring-pink-300">
+            <p v-if="accessCodeError" class="text-xs text-rose-500 font-bold">⚠️ {{ accessCodeError }}</p>
+            <button @click="openListByCode" :disabled="searchingList" class="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all">
+              {{ searchingList ? t.searchingListBtn : t.openWishlistBtn }}
+            </button>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100">
+            <button @click="openGuestQrScanner" type="button" class="w-full py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs rounded-2xl border border-purple-200 flex items-center justify-center gap-2 transition-all">
+              <span>📷</span>
+              <span>{{ t.scanInvitationQrBtn }}</span>
+            </button>
+          </div>
         </div>
 
       </template>
@@ -692,7 +725,7 @@
             <img :src="qrCodeImageUrl" alt="Código QR Mi CasitApp" class="w-44 h-44 mx-auto">
           </div>
           <p class="text-[11px] text-slate-600 font-semibold leading-snug">
-            Escanea con tu cámara para ver los regalos e instalar la app en tu celular 🎁
+            Escanea con tu cámara para instalar la app y abrir tu lista de invitación 🎁
           </p>
         </div>
 
@@ -789,17 +822,19 @@
       </div>
     </div>
 
-    <!-- MODAL ESCÁNER DE CÓDIGO DE BARRAS CON CÁMARA -->
+    <!-- MODAL ESCÁNER DE CÓDIGO DE BARRAS / QR CON CÁMARA -->
     <div v-if="showCameraModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-4 w-full max-w-xs space-y-3 shadow-2xl text-center">
         <div class="flex items-center justify-between border-b pb-2">
-          <h3 class="font-bold text-sm text-slate-800">📷 Escanear Código de Barras</h3>
+          <h3 class="font-bold text-sm text-slate-800">📷 {{ cameraScanMode === 'guest_qr' ? t.scanInvitationQrBtn : 'Escanear Código de Barras' }}</h3>
           <button @click="closeCameraScanner" class="text-slate-400 font-bold text-sm px-1">✕</button>
         </div>
         <div id="barcode-reader" class="w-full rounded-2xl overflow-hidden bg-black min-h-[220px]"></div>
-        <p class="text-[11px] text-slate-500">Apunta la cámara al código de barras del producto.</p>
+        <p class="text-[11px] text-slate-500">
+          {{ cameraScanMode === 'guest_qr' ? t.scanQrHint : 'Apunta la cámara al código de barras del producto.' }}
+        </p>
         <button @click="closeCameraScanner" class="w-full py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">
-          Cancelar
+          {{ t.cancelBtn }}
         </button>
       </div>
     </div>
@@ -1006,9 +1041,10 @@
         languageLabel: 'Idioma',
         myOrderBtn: 'Mi Pedido',
         familyMode: 'Familia',
+        changeCodeBtn: 'Cambiar código',
         installAppPrompt: 'Instala Mi CasitApp en tu celular',
         installBtn: 'Instalar',
-        loadingLists: 'Cargando listas de deseos...',
+        loadingLists: 'Cargando lista privada...',
         currentListLabel: 'Lista actual',
         noListsYet: 'Aún no hay listas creadas',
         listTitle: (name) => `Lista de ${name}`,
@@ -1056,8 +1092,14 @@
         giftBagSummary: 'Bolsa de regalo de lujo',
         sendWhatsappBtn: '📲 Enviar comprobante por WhatsApp a la tienda',
         backToListBtn: 'Volver a la Lista',
-        welcomeTitle: '¡Bienvenido a Mi CasitApp!',
-        welcomeSub: 'Aún no hay listas disponibles en este momento.',
+        privateAccessTitle: 'Listas Privadas de Regalos',
+        privateAccessSub: 'Para proteger la privacidad de cada cumpleañero, ingresa el código de invitación o escanea el código QR recibido.',
+        accessCodePlaceholder: 'Código de lista (ej. SOFIA-482)',
+        openWishlistBtn: 'Abrir Lista de Regalos',
+        searchingListBtn: 'Buscando lista...',
+        scanInvitationQrBtn: 'Escanear QR de Invitación',
+        scanQrHint: 'Apunta la cámara al código QR que te envió la familia.',
+        codeNotFoundErr: 'No encontramos ninguna lista con ese código. Verifica e intenta de nuevo.',
         trackModalTitle: 'Estado de mi Pedido',
         trackPhoneLabel: 'Tu número de teléfono',
         forLabel: 'Para',
@@ -1097,9 +1139,10 @@
         languageLabel: 'Sprache',
         myOrderBtn: 'Bestellung',
         familyMode: 'Familie',
+        changeCodeBtn: 'Code ändern',
         installAppPrompt: 'Mi CasitApp auf dem Handy installieren',
         installBtn: 'Installieren',
-        loadingLists: 'Wunschlisten werden geladen...',
+        loadingLists: 'Private Wunschliste wird geladen...',
         currentListLabel: 'Aktuelle Wunschliste',
         noListsYet: 'Noch keine Wunschlisten erstellt',
         listTitle: (name) => `Wunschliste von ${name}`,
@@ -1147,8 +1190,14 @@
         giftBagSummary: 'Exklusive Geschenktüte',
         sendWhatsappBtn: '📲 Beleg per WhatsApp an das Geschäft senden',
         backToListBtn: 'Zurück zur Liste',
-        welcomeTitle: 'Willkommen bei Mi CasitApp!',
-        welcomeSub: 'Momentan sind noch keine Wunschlisten verfügbar.',
+        privateAccessTitle: 'Private Wunschlisten',
+        privateAccessSub: 'Aus Datenschutzgründen gib bitte den Einladungscode ein oder scanne den erhaltenen QR-Code.',
+        accessCodePlaceholder: 'Listencode (z. B. SOFIA-482)',
+        openWishlistBtn: 'Wunschliste öffnen',
+        searchingListBtn: 'Liste wird gesucht...',
+        scanInvitationQrBtn: 'Einladungs-QR scannen',
+        scanQrHint: 'Richte die Kamera auf den QR-Code der Einladung.',
+        codeNotFoundErr: 'Keine Wunschliste mit diesem Code gefunden. Bitte überprüfe die Eingabe.',
         trackModalTitle: 'Status meiner Bestellung',
         trackPhoneLabel: 'Deine Telefonnummer',
         forLabel: 'Für',
@@ -1188,9 +1237,10 @@
         languageLabel: 'Language',
         myOrderBtn: 'My Order',
         familyMode: 'Family',
+        changeCodeBtn: 'Change code',
         installAppPrompt: 'Install Mi CasitApp on your phone',
         installBtn: 'Install',
-        loadingLists: 'Loading wishlists...',
+        loadingLists: 'Loading private wishlist...',
         currentListLabel: 'Current wishlist',
         noListsYet: 'No wishlists created yet',
         listTitle: (name) => `${name}'s Wishlist`,
@@ -1238,8 +1288,14 @@
         giftBagSummary: 'Luxury gift bag',
         sendWhatsappBtn: '📲 Send receipt via WhatsApp to store',
         backToListBtn: 'Back to Wishlist',
-        welcomeTitle: 'Welcome to Mi CasitApp!',
-        welcomeSub: 'There are no wishlists available right now.',
+        privateAccessTitle: 'Private Gift Wishlists',
+        privateAccessSub: 'To protect each birthday child’s privacy, enter your invitation code or scan the QR code you received.',
+        accessCodePlaceholder: 'List code (e.g. SOFIA-482)',
+        openWishlistBtn: 'Open Wishlist',
+        searchingListBtn: 'Searching wishlist...',
+        scanInvitationQrBtn: 'Scan Invitation QR',
+        scanQrHint: 'Point your camera at the invitation QR code.',
+        codeNotFoundErr: 'No wishlist found with that code. Please check and try again.',
         trackModalTitle: 'My Order Status',
         trackPhoneLabel: 'Your phone number',
         forLabel: 'For',
@@ -1322,6 +1378,8 @@
             unsubscribeAdminOrders = null;
           }
           adminOrders.value = [];
+          lists.value = [];
+          subscribeToLists();
         };
 
         // INSTALACIÓN PWA
@@ -1374,12 +1432,19 @@
           return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&color=1E293B&data=${encodeURIComponent(activeListDirectUrl.value)}`;
         });
 
-        // Mensaje que la tienda envía SOLO a la mamá (incluye su PIN privado)
+        const getListDisplayCode = (listObj) => {
+          if (!listObj) return '';
+          return (listObj.accessCode || listObj.id.slice(0, 6)).toUpperCase();
+        };
+
+        // Mensaje que la tienda envía SOLO a la mamá (incluye código corto y PIN privado)
         const shareListWhatsappAdmin = () => {
           if (!activeList.value) return;
           const dateStr = activeList.value.eventDate ? `\n📅 Fecha: ${formatEventDateTime(activeList.value.eventDate, activeList.value.eventTime)}` : '';
+          const code = getListDisplayCode(activeList.value);
           const msg = `🎁 *Lista de Regalos de ${activeList.value.childName}* (${activeList.value.event})${dateStr}\n\n` +
-                      `Enlace directo para tus invitados:\n${activeListDirectUrl.value}\n\n` +
+                      `Enlace directo para tus invitados:\n${activeListDirectUrl.value}\n` +
+                      `🎟️ *Código de lista:* ${code}\n\n` +
                       `🔑 *Tu PIN exclusivo para ver el estado de la caja y compartir el QR:* ${activeList.value.familyPin || '1234'}`;
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         };
@@ -1388,8 +1453,10 @@
         const shareListWhatsappFamily = () => {
           if (!activeList.value) return;
           const dateStr = activeList.value.eventDate ? `\n📅 *Fecha:* ${formatEventDateTime(activeList.value.eventDate, activeList.value.eventTime)}` : '';
+          const code = getListDisplayCode(activeList.value);
           const msg = `🎁 *¡Hola! Te comparto la Lista de Regalos de ${activeList.value.childName}* (${activeList.value.event})${dateStr}\n\n` +
-                      `Puedes ver las opciones disponibles en *La Casita by AGM* y reservar tu regalo aquí:\n${activeListDirectUrl.value}`;
+                      `Puedes ver las opciones disponibles en *La Casita by AGM* y reservar tu regalo aquí:\n${activeListDirectUrl.value}\n` +
+                      `🎟️ Código: *${code}*`;
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         };
 
@@ -1456,6 +1523,7 @@
         const editingListData = ref(null);
         const showTrackModal = ref(false);
         const showCameraModal = ref(false);
+        const cameraScanMode = ref('sku'); // 'sku' | 'guest_qr'
         const previewProduct = ref(null);
         const editingProduct = ref(null);
         const scanFeedback = ref('');
@@ -1471,10 +1539,16 @@
 
         const lists = ref([]);
         const adminOrders = ref([]);
+        let unsubscribeLists = null;
         let unsubscribeAdminOrders = null;
         let unsubscribeGuestOrder = null;
 
-        const preselectedListIdFromUrl = ref('');
+        // PRIVACIDAD TOTAL: Cada visitante solo accede a la lista vinculada por QR (?list=ID) o código ingresado
+        const lockedListId = ref(sessionStorage.getItem('micasitapp_locked_list') || '');
+        const accessCodeInput = ref('');
+        const accessCodeError = ref('');
+        const searchingList = ref(false);
+
         const selectedListId = ref('');
         const selectedIds = ref([]);
         const includeGiftBag = ref(false);
@@ -1504,6 +1578,16 @@
 
         const generateRandomPin = () => String(Math.floor(1000 + Math.random() * 9000));
 
+        const generateAccessCode = (childName) => {
+          const cleanName = (childName || 'LISTA')
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .toUpperCase()
+            .slice(0, 6) || 'LISTA';
+          const num = Math.floor(100 + Math.random() * 900);
+          return `${cleanName}-${num}`;
+        };
+
         const newList = ref({ childName: '', event: '', eventDate: '', eventTime: '', familyPin: generateRandomPin() });
         const newProduct = ref({ name: '', sku: '', price: null, emoji: '', desc: '', image: '' });
         const buyer = ref({ name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' });
@@ -1519,6 +1603,109 @@
           selectedIds.value = [];
           validationErrors.value = [];
           isParentUnlocked.value = false;
+        };
+
+        const exitCurrentGuestList = () => {
+          lockedListId.value = '';
+          sessionStorage.removeItem('micasitapp_locked_list');
+          lists.value = [];
+          selectedListId.value = '';
+          selectedIds.value = [];
+          isParentUnlocked.value = false;
+          accessCodeInput.value = '';
+          accessCodeError.value = '';
+          if (unsubscribeLists) {
+            unsubscribeLists();
+            unsubscribeLists = null;
+          }
+        };
+
+        const openListByCode = async () => {
+          const rawCode = accessCodeInput.value.trim().toUpperCase();
+          if (!rawCode) return;
+          searchingList.value = true;
+          accessCodeError.value = '';
+
+          try {
+            // 1. Buscar por código corto (ej. SOFIA-482)
+            const qByCode = query(collection(db, "wishlists"), where("accessCode", "==", rawCode));
+            const snapCode = await getDocs(qByCode);
+
+            if (!snapCode.empty) {
+              const foundDoc = snapCode.docs[0];
+              lockedListId.value = foundDoc.id;
+              sessionStorage.setItem('micasitapp_locked_list', foundDoc.id);
+              subscribeToLists();
+              return;
+            }
+
+            // 2. Fallback: si pegó el ID directo del documento
+            const directSnap = await getDoc(doc(db, "wishlists", accessCodeInput.value.trim()));
+            if (directSnap.exists()) {
+              lockedListId.value = directSnap.id;
+              sessionStorage.setItem('micasitapp_locked_list', directSnap.id);
+              subscribeToLists();
+              return;
+            }
+
+            accessCodeError.value = t.value.codeNotFoundErr;
+          } catch (e) {
+            console.error(e);
+            accessCodeError.value = t.value.codeNotFoundErr;
+          } finally {
+            searchingList.value = false;
+          }
+        };
+
+        // SUSCRIPCIÓN A LISTAS CON PRIVACIDAD TOTAL:
+        // - En modo invitado con QR/código (lockedListId): descarga SOLO ese documento puntual.
+        // - En modo invitado sin QR/código (!isAdmin && !lockedListId): NO descarga ninguna lista.
+        // - En Modo Tienda (isAdmin): carga todas las listas para gestión.
+        const subscribeToLists = () => {
+          if (unsubscribeLists) {
+            unsubscribeLists();
+            unsubscribeLists = null;
+          }
+
+          if (!isAdmin.value && !lockedListId.value) {
+            lists.value = [];
+            selectedListId.value = '';
+            loading.value = false;
+            return;
+          }
+
+          if (!isAdmin.value && lockedListId.value) {
+            const targetId = lockedListId.value;
+            unsubscribeLists = onSnapshot(doc(db, "wishlists", targetId), (docSnap) => {
+              if (docSnap.exists()) {
+                lists.value = [{ id: docSnap.id, ...docSnap.data() }];
+                selectedListId.value = docSnap.id;
+              } else {
+                lists.value = [];
+                selectedListId.value = '';
+                lockedListId.value = '';
+                sessionStorage.removeItem('micasitapp_locked_list');
+              }
+              loading.value = false;
+            }, (error) => {
+              console.error("Error cargando la lista:", error);
+              loading.value = false;
+            });
+          } else {
+            const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
+            unsubscribeLists = onSnapshot(qLists, (snapshot) => {
+              lists.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              if (!selectedListId.value && lists.value.length > 0) {
+                selectedListId.value = lockedListId.value && lists.value.some(l => l.id === lockedListId.value)
+                  ? lockedListId.value
+                  : lists.value[0].id;
+              }
+              loading.value = false;
+            }, (error) => {
+              console.error("Error conectando a Firebase:", error);
+              loading.value = false;
+            });
+          }
         };
 
         const startAdminOrdersListener = () => {
@@ -1716,6 +1903,7 @@
         };
 
         const openCameraScanner = async () => {
+          cameraScanMode.value = 'sku';
           showCameraModal.value = true;
           await nextTick();
           try {
@@ -1728,6 +1916,40 @@
                 newProduct.value.sku = decodedText.trim().toUpperCase();
                 await closeCameraScanner();
                 await handleBarcodeScanned();
+              },
+              () => {}
+            );
+          } catch (err) {
+            alert("No se pudo abrir la cámara. Verifica los permisos del navegador.");
+            showCameraModal.value = false;
+          }
+        };
+
+        const openGuestQrScanner = async () => {
+          cameraScanMode.value = 'guest_qr';
+          showCameraModal.value = true;
+          await nextTick();
+          try {
+            html5QrScanner = new Html5Qrcode("barcode-reader");
+            await html5QrScanner.start(
+              { facingMode: "environment" },
+              { fps: 10, qrbox: { width: 220, height: 220 } },
+              async (decodedText) => {
+                await closeCameraScanner();
+                let extractedId = '';
+                try {
+                  const parsed = new URL(decodedText.trim());
+                  extractedId = parsed.searchParams.get('list') || '';
+                } catch (e) {}
+
+                if (extractedId) {
+                  lockedListId.value = extractedId;
+                  sessionStorage.setItem('micasitapp_locked_list', extractedId);
+                  subscribeToLists();
+                } else {
+                  accessCodeInput.value = decodedText.trim();
+                  await openListByCode();
+                }
               },
               () => {}
             );
@@ -1829,6 +2051,10 @@
         };
 
         const activeList = computed(() => {
+          if (!isAdmin.value) {
+            if (!lockedListId.value) return null;
+            return lists.value.find(l => l.id === lockedListId.value) || null;
+          }
           return lists.value.find(l => l.id === selectedListId.value) || lists.value[0] || null;
         });
 
@@ -1926,6 +2152,7 @@
             showPinModal.value = false;
             pinError.value = false;
             playNotificationSound();
+            subscribeToLists();
             startAdminOrdersListener();
             nextTick(() => {
               if (skuInputRef.value) skuInputRef.value.focus();
@@ -1958,6 +2185,7 @@
               eventDate: newList.value.eventDate || '',
               eventTime: newList.value.eventTime || '',
               familyPin: (newList.value.familyPin || generateRandomPin()).trim(),
+              accessCode: generateAccessCode(name),
               products: [],
               createdAt: Date.now()
             });
@@ -1989,13 +2217,17 @@
           if (!editingListData.value || !editingListData.value.childName.trim()) return;
           saving.value = true;
           try {
-            await updateDoc(doc(db, "wishlists", editingListData.value.id), {
+            const updatePayload = {
               childName: editingListData.value.childName.trim(),
               event: editingListData.value.event.trim() || 'Cumpleaños',
               eventDate: editingListData.value.eventDate || '',
               eventTime: editingListData.value.eventTime || '',
               familyPin: (editingListData.value.familyPin || '1234').trim()
-            });
+            };
+            if (!activeList.value.accessCode) {
+              updatePayload.accessCode = generateAccessCode(updatePayload.childName);
+            }
+            await updateDoc(doc(db, "wishlists", editingListData.value.id), updatePayload);
             showEditListModal.value = false;
           } catch (e) {
             alert("Error al actualizar datos de la lista: " + e.message);
@@ -2173,8 +2405,11 @@
             showPinModal.value = true;
             window.history.replaceState({}, document.title, window.location.pathname);
           }
-          if (params.get('list')) {
-            preselectedListIdFromUrl.value = params.get('list');
+
+          const urlListId = params.get('list');
+          if (urlListId) {
+            lockedListId.value = urlListId;
+            sessionStorage.setItem('micasitapp_locked_list', urlListId);
           }
 
           window.addEventListener('beforeinstallprompt', (e) => {
@@ -2192,20 +2427,7 @@
             showInstallBanner.value = true;
           }
 
-          const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
-          onSnapshot(qLists, (snapshot) => {
-            lists.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (preselectedListIdFromUrl.value && lists.value.some(l => l.id === preselectedListIdFromUrl.value)) {
-              selectedListId.value = preselectedListIdFromUrl.value;
-              preselectedListIdFromUrl.value = '';
-            } else if (!selectedListId.value && lists.value.length > 0) {
-              selectedListId.value = lists.value[0].id;
-            }
-            loading.value = false;
-          }, (error) => {
-            console.error("Error conectando a Firebase:", error);
-            loading.value = false;
-          });
+          subscribeToLists();
 
           if (lastOrderId.value) {
             watchClientOrder(lastOrderId.value);
@@ -2224,13 +2446,14 @@
           showFamilyQrModal, activeListQrUrl, shareListWhatsappAdmin, shareListWhatsappFamily,
           downloadFamilyQrImage, copyFamilyDirectLink, copiedFamilyLink,
           isParentUnlocked, showParentPinModal, parentPinInput, parentPinError, openParentPanel, verifyParentPin,
+          lockedListId, accessCodeInput, accessCodeError, searchingList, openListByCode, exitCurrentGuestList,
           lists, selectedListId, activeList, onListChange, formatEventDateTime,
           availableProducts, purchasedProducts, totalProductsCount, progressPercentage,
           listOrders, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, localizedPaymentMethods, newProduct, newList,
           showEditListModal, editingListData, openEditListModal, saveEditedList,
           fileInputRef, skuInputRef, nameInputRef, priceInputRef, scanFeedback,
-          handleBarcodeScanned, showCameraModal, openCameraScanner, closeCameraScanner,
+          handleBarcodeScanned, showCameraModal, cameraScanMode, openCameraScanner, openGuestQrScanner, closeCameraScanner,
           handleImageUpload, clearProductImage, previewProduct,
           editingProduct, openEditModal, handleEditImageUpload, saveEditedProduct,
           showNewListModal, showTrackModal, trackPhone, guestOrders, lookupGuestOrders, myReadyOrdersCount,
