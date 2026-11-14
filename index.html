@@ -79,7 +79,7 @@
       </div>
     </div>
 
-    <!-- BANNER DE INSTALACIÓN DE APP (PARA CLIENTES QUE ESCANEAN EL QR) -->
+    <!-- BANNER DE INSTALACIÓN DE APP -->
     <div v-if="!isAdmin && showInstallBanner" class="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-4 py-2.5 flex items-center justify-between gap-2 text-xs shadow-md">
       <div class="flex items-center gap-2 min-w-0">
         <span class="text-lg">📲</span>
@@ -108,7 +108,7 @@
         </div>
         
         <div class="flex items-center gap-1.5">
-          <!-- BOTÓN SALIR DE MODO TIENDA (SOLO VISIBLE CUANDO YA ESTÁS LOGUEADO COMO ADMIN) -->
+          <!-- BOTÓN SALIR DE MODO TIENDA -->
           <button v-if="isAdmin" @click="exitAdminMode" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-purple-600 text-white shadow-sm">
             🔒 Salir Tienda
           </button>
@@ -265,16 +265,16 @@
               </button>
             </div>
 
-            <!-- PIN DE FAMILIA VISIBLE SOLO PARA LA TIENDA PARA ENTREGAR A LOS PADRES -->
+            <!-- PIN DE FAMILIA VISIBLE SOLO PARA LA TIENDA -->
             <div v-if="isAdmin" class="pt-2 border-t border-white/50 flex items-center justify-between text-[11px]">
-              <span class="text-slate-700 font-semibold">🔑 PIN para los padres: <strong class="bg-white px-2 py-0.5 rounded-md text-pink-600 tracking-widest">{{ activeList.familyPin || '1234' }}</strong></span>
-              <button @click="shareListWhatsapp" class="text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg font-bold">
-                📲 Compartir lista
+              <span class="text-slate-700 font-semibold">🔑 PIN padres: <strong class="bg-white px-2 py-0.5 rounded-md text-pink-600 tracking-widest">{{ activeList.familyPin || '1234' }}</strong></span>
+              <button @click="shareListWhatsappAdmin" class="text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg font-bold">
+                📲 Pasar a Mamá
               </button>
             </div>
           </div>
 
-          <!-- PANEL EN VIVO PARA PADRES / CUMPLEAÑERO (ESTADO DE LA CAJA) -->
+          <!-- PANEL EN VIVO PARA PADRES / CUMPLEAÑERO (CON QR PARA COMPARTIR A INVITADOS) -->
           <div v-if="isParentUnlocked && !isAdmin" class="bg-white p-4 rounded-3xl shadow-md border-2 border-pink-300 mb-6 space-y-3">
             <div class="flex items-center justify-between border-b border-pink-100 pb-2">
               <div>
@@ -284,6 +284,25 @@
               <button @click="isParentUnlocked = false" class="text-xs text-slate-400 font-bold px-2 py-1 bg-slate-100 rounded-lg">
                 ✕
               </button>
+            </div>
+
+            <!-- TARJETA PARA COMPARTIR QR Y ENLACE DIRECTO A INVITADOS -->
+            <div class="bg-gradient-to-r from-pink-50 to-purple-50 p-3 rounded-2xl border border-pink-200 flex items-center gap-3">
+              <div @click="showFamilyQrModal = true" class="bg-white p-1.5 rounded-xl border border-pink-200 shadow-xs cursor-pointer flex-shrink-0">
+                <img :src="activeListQrUrl" alt="QR de la lista" class="w-16 h-16">
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <p class="text-xs font-bold text-slate-800 leading-tight">{{ t.shareWithGuestsTitle }}</p>
+                <p class="text-[10px] text-slate-500 leading-snug">{{ t.shareWithGuestsSub }}</p>
+                <div class="flex gap-1.5 pt-0.5">
+                  <button @click="shareListWhatsappFamily" type="button" class="flex-1 py-1.5 px-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] rounded-xl shadow-xs">
+                    📲 WhatsApp
+                  </button>
+                  <button @click="showFamilyQrModal = true" type="button" class="py-1.5 px-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] rounded-xl shadow-xs">
+                    🔍 {{ t.viewQrBtn }}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- RESUMEN DE CANTIDADES -->
@@ -337,7 +356,7 @@
             </div>
           </div>
 
-          <!-- FORMULARIO SOLO VISIBLE PARA ADMIN (CON LECTOR DE CÓDIGO DE BARRAS Y MEMORIA DE CATÁLOGO) -->
+          <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
           <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
             <div class="flex items-center justify-between">
               <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
@@ -420,7 +439,6 @@
 
             <div v-for="product in availableProducts" :key="product.id" 
                  class="bg-white/80 p-3.5 rounded-2xl border border-white shadow-sm flex items-center gap-3">
-              <!-- MINIATURA CON FOTO O EMOJI -->
               <div @click="product.image ? previewProduct = product : null"
                    class="w-16 h-16 bg-pink-100/70 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden relative border border-pink-100"
                    :class="product.image ? 'cursor-zoom-in group' : ''">
@@ -441,13 +459,11 @@
               </div>
               
               <div class="flex items-center gap-1.5 flex-shrink-0">
-                <!-- BOTÓN EDITAR PRODUCTO (SOLO ADMIN) -->
                 <button v-if="isAdmin" @click="openEditModal(product)" type="button" title="Editar precio o datos"
                         class="w-8 h-8 rounded-full bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 flex items-center justify-center text-xs transition-all">
                   ✏️
                 </button>
 
-                <!-- BOTÓN SELECCIONAR REGALO -->
                 <button @click="toggleSelect(product.id)" 
                         class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold"
                         :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
@@ -457,7 +473,7 @@
             </div>
           </div>
 
-          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE Y CARGADO CUANDO isAdmin ES TRUE) -->
+          <!-- PEDIDOS REALIZADOS (SOLO ADMIN) -->
           <div v-if="isAdmin && listOrders.length > 0" class="bg-purple-50/90 p-4 rounded-3xl border border-purple-200 mb-6 space-y-3">
             <h3 class="font-bold text-sm text-purple-800">📋 Pedidos Recibidos ({{ listOrders.length }})</h3>
             <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3.5 rounded-2xl text-xs space-y-2 shadow-sm border"
@@ -623,7 +639,45 @@
 
     </main>
 
-    <!-- MODAL QR PARA MOSTRADOR DE LA TIENDA (INSTALACIÓN AUTOMÁTICA / ACCESO DIRECTO) -->
+    <!-- MODAL QR EXCLUSIVO PARA FAMILIA / INVITADOS (TARJETA LISTA PARA ENVIAR POR WHATSAPP) -->
+    <div v-if="showFamilyQrModal && activeList" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-2xl text-center">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h3 class="font-bold text-sm text-pink-600">🎁 {{ t.familyQrModalTitle }}</h3>
+          <button @click="showFamilyQrModal = false" class="text-slate-400 font-bold text-sm">✕</button>
+        </div>
+
+        <div class="bg-gradient-to-b from-pink-50 via-purple-50 to-sky-50 p-4 rounded-2xl border border-pink-200 space-y-2">
+          <p class="text-[10px] font-bold text-purple-600 uppercase tracking-wider">La Casita by AGM</p>
+          <h4 class="font-bold text-base text-slate-800">{{ t.listTitle(activeList.childName) }}</h4>
+          <p v-if="activeList.eventDate" class="text-[11px] font-bold text-pink-600">
+            📅 {{ formatEventDateTime(activeList.eventDate, activeList.eventTime) }}
+          </p>
+          <div class="bg-white p-3 rounded-2xl inline-block shadow-sm border border-pink-100">
+            <img :src="activeListQrUrl" alt="Código QR Lista de Regalos" class="w-44 h-44 mx-auto">
+          </div>
+          <p class="text-[11px] text-slate-600 font-semibold leading-snug">
+            {{ t.familyQrCardHint }}
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <button @click="shareListWhatsappFamily" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm">
+            📲 {{ t.shareWhatsappBtn }}
+          </button>
+          <div class="flex gap-2">
+            <button @click="downloadFamilyQrImage" class="flex-1 py-2 bg-purple-100 text-purple-700 font-bold text-xs rounded-xl">
+              📥 {{ t.downloadQrBtn }}
+            </button>
+            <button @click="copyFamilyDirectLink" class="flex-1 py-2 bg-pink-100 text-pink-700 font-bold text-xs rounded-xl">
+              {{ copiedFamilyLink ? '✅ ' + t.copiedBtn : '🔗 ' + t.copyLinkBtn }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL QR PARA MOSTRADOR DE LA TIENDA -->
     <div v-if="showQrModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-2xl text-center">
         <div class="flex items-center justify-between border-b pb-2">
@@ -813,7 +867,7 @@
       </div>
     </div>
 
-    <!-- MODAL PIN ADMIN (SOLO SE ABRE CON 5 TOQUES EN EL LOGO O ?admin=1) -->
+    <!-- MODAL PIN ADMIN -->
     <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl text-center">
         <h3 class="font-bold text-base text-slate-800">Acceso Tienda</h3>
@@ -827,7 +881,7 @@
       </div>
     </div>
 
-    <!-- MODAL CREACIÓN DE NUEVA LISTA (CON FECHA, HORA Y PIN DE FAMILIA) -->
+    <!-- MODAL CREACIÓN DE NUEVA LISTA -->
     <div v-if="showNewListModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-3 shadow-xl">
         <h3 class="font-bold text-base text-slate-800">Crear Nueva Lista</h3>
@@ -899,10 +953,10 @@
 
   </div>
 
-  <!-- REGISTRO DE MANIFEST PWA DINÁMICO (PARA INSTALACIÓN AUTOMÁTICA EN PANTALLA COMPLETA) -->
+  <!-- REGISTRO DE MANIFEST PWA CON DOMINIO OFICIAL -->
   <script>
     (function setupPWA() {
-      const cleanUrl = window.location.origin + window.location.pathname;
+      const cleanUrl = "https://micasitapp.agm.com.py/";
       const manifestData = {
         name: "Mi CasitApp - Lista de Deseos",
         short_name: "Mi CasitApp",
@@ -1028,7 +1082,16 @@
         parentBoxHealthy: (n) => `Aún quedan ${n} regalos disponibles para los invitados.`,
         parentAlreadyChosenList: 'Regalos ya elegidos',
         parentStillPendingList: 'Regalos aún pendientes',
-        chosenBadge: 'Elegido'
+        chosenBadge: 'Elegido',
+        shareWithGuestsTitle: 'Compartir lista con invitados',
+        shareWithGuestsSub: 'Envía el QR o enlace directo para que elijan su regalo:',
+        viewQrBtn: 'Ver QR',
+        familyQrModalTitle: 'QR de Invitación',
+        familyQrCardHint: 'Escanea este QR con tu cámara para ver la lista de deseos y elegir un regalo 🎁',
+        shareWhatsappBtn: 'Enviar invitación por WhatsApp',
+        downloadQrBtn: 'Descargar QR',
+        copyLinkBtn: 'Copiar enlace',
+        copiedBtn: 'Copiado'
       },
       de: {
         languageLabel: 'Sprache',
@@ -1110,7 +1173,16 @@
         parentBoxHealthy: (n) => `Es sind noch ${n} Geschenke für Gäste verfügbar.`,
         parentAlreadyChosenList: 'Bereits gewählte Geschenke',
         parentStillPendingList: 'Noch offene Geschenke',
-        chosenBadge: 'Gewählt'
+        chosenBadge: 'Gewählt',
+        shareWithGuestsTitle: 'Liste mit Gästen teilen',
+        shareWithGuestsSub: 'Sende den QR-Code oder Direktlink an die Familie:',
+        viewQrBtn: 'QR',
+        familyQrModalTitle: 'Einladungs-QR-Code',
+        familyQrCardHint: 'Scanne diesen QR-Code, um die Wunschliste zu öffnen 🎁',
+        shareWhatsappBtn: 'Einladung per WhatsApp senden',
+        downloadQrBtn: 'QR speichern',
+        copyLinkBtn: 'Link kopieren',
+        copiedBtn: 'Kopiert'
       },
       en: {
         languageLabel: 'Language',
@@ -1192,12 +1264,22 @@
         parentBoxHealthy: (n) => `${n} gifts are still available for guests.`,
         parentAlreadyChosenList: 'Already chosen gifts',
         parentStillPendingList: 'Still available gifts',
-        chosenBadge: 'Chosen'
+        chosenBadge: 'Chosen',
+        shareWithGuestsTitle: 'Share wishlist with guests',
+        shareWithGuestsSub: 'Send the QR code or direct link to family & friends:',
+        viewQrBtn: 'View QR',
+        familyQrModalTitle: 'Invitation QR Code',
+        familyQrCardHint: 'Scan this QR code with your camera to view the wishlist and pick a gift 🎁',
+        shareWhatsappBtn: 'Send invitation via WhatsApp',
+        downloadQrBtn: 'Download QR',
+        copyLinkBtn: 'Copy link',
+        copiedBtn: 'Copied'
       }
     };
 
     createApp({
       setup() {
+        const OFFICIAL_BASE_URL = "https://micasitapp.agm.com.py/";
         const lang = ref(localStorage.getItem('micasitapp_lang') || 'es');
         const t = computed(() => translations[lang.value] || translations.es);
 
@@ -1213,7 +1295,6 @@
         const ADMIN_PIN = '21162430';
         const STORE_WHATSAPP = '595981925071';
 
-        // ACCESO OCULTO DE TIENDA (5 TOQUES EN LOGO O ?admin=1)
         let secretTapCount = 0;
         let secretTapTimer = null;
         const showPinModal = ref(false);
@@ -1243,7 +1324,7 @@
           adminOrders.value = [];
         };
 
-        // INSTALACIÓN PWA (BANNER PARA CLIENTES)
+        // INSTALACIÓN PWA
         const showInstallBanner = ref(false);
         let deferredInstallPrompt = null;
 
@@ -1258,12 +1339,10 @@
           }
         };
 
-        // QR DE MOSTRADOR Y ENLACE LIMPIO
+        // QR DE MOSTRADOR (GENERAL DE LA TIENDA)
         const showQrModal = ref(false);
         const copiedLink = ref(false);
-        const cleanAppUrl = computed(() => {
-          return window.location.origin + window.location.pathname;
-        });
+        const cleanAppUrl = computed(() => OFFICIAL_BASE_URL);
         const qrCodeImageUrl = computed(() => {
           return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&color=1E293B&data=${encodeURIComponent(cleanAppUrl.value)}`;
         });
@@ -1282,13 +1361,64 @@
           }
         };
 
-        const shareListWhatsapp = () => {
+        // ENLACE Y QR DIRECTO DE LA LISTA PARA MAMÁ / CUMPLEAÑERO
+        const showFamilyQrModal = ref(false);
+        const copiedFamilyLink = ref(false);
+
+        const activeListDirectUrl = computed(() => {
+          if (!activeList.value) return OFFICIAL_BASE_URL;
+          return `${OFFICIAL_BASE_URL}?list=${encodeURIComponent(activeList.value.id)}`;
+        });
+
+        const activeListQrUrl = computed(() => {
+          return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&color=1E293B&data=${encodeURIComponent(activeListDirectUrl.value)}`;
+        });
+
+        // Mensaje que la tienda envía SOLO a la mamá (incluye su PIN privado)
+        const shareListWhatsappAdmin = () => {
           if (!activeList.value) return;
           const dateStr = activeList.value.eventDate ? `\n📅 Fecha: ${formatEventDateTime(activeList.value.eventDate, activeList.value.eventTime)}` : '';
           const msg = `🎁 *Lista de Regalos de ${activeList.value.childName}* (${activeList.value.event})${dateStr}\n\n` +
-                      `Elige tu regalo aquí:\n${cleanAppUrl.value}\n\n` +
-                      `🔑 *PIN exclusivo para los padres:* ${activeList.value.familyPin || '1234'}`;
+                      `Enlace directo para tus invitados:\n${activeListDirectUrl.value}\n\n` +
+                      `🔑 *Tu PIN exclusivo para ver el estado de la caja y compartir el QR:* ${activeList.value.familyPin || '1234'}`;
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
+        // Mensaje que la mamá envía a sus invitados (SIN PIN privado, directo a su lista)
+        const shareListWhatsappFamily = () => {
+          if (!activeList.value) return;
+          const dateStr = activeList.value.eventDate ? `\n📅 *Fecha:* ${formatEventDateTime(activeList.value.eventDate, activeList.value.eventTime)}` : '';
+          const msg = `🎁 *¡Hola! Te comparto la Lista de Regalos de ${activeList.value.childName}* (${activeList.value.event})${dateStr}\n\n` +
+                      `Puedes ver las opciones disponibles en *La Casita by AGM* y reservar tu regalo aquí:\n${activeListDirectUrl.value}`;
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
+        const copyFamilyDirectLink = async () => {
+          try {
+            await navigator.clipboard.writeText(activeListDirectUrl.value);
+            copiedFamilyLink.value = true;
+            setTimeout(() => { copiedFamilyLink.value = false; }, 2500);
+          } catch (e) {
+            alert(activeListDirectUrl.value);
+          }
+        };
+
+        const downloadFamilyQrImage = async () => {
+          if (!activeList.value) return;
+          try {
+            const response = await fetch(activeListQrUrl.value);
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `QR-Regalos-${activeList.value.childName.replace(/\s+/g, '-')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            window.open(activeListQrUrl.value, '_blank');
+          }
         };
 
         // PANEL DE PADRES / CUMPLEAÑERO
@@ -1344,6 +1474,7 @@
         let unsubscribeAdminOrders = null;
         let unsubscribeGuestOrder = null;
 
+        const preselectedListIdFromUrl = ref('');
         const selectedListId = ref('');
         const selectedIds = ref([]);
         const includeGiftBag = ref(false);
@@ -1390,7 +1521,6 @@
           isParentUnlocked.value = false;
         };
 
-        // SUSCRIPCIÓN DE PEDIDOS SOLO CUANDO SE ACTIVA MODO TIENDA
         const startAdminOrdersListener = () => {
           if (unsubscribeAdminOrders) unsubscribeAdminOrders();
           initialOrdersLoaded = false;
@@ -1422,7 +1552,6 @@
           });
         };
 
-        // CONSULTAR PEDIDOS PUNTUALES DEL INVITADO POR TELÉFONO (SIN EXPONER TODOS LOS PEDIDOS)
         const lookupGuestOrders = async () => {
           const cleanPhone = trackPhone.value.replace(/\D/g, '');
           if (cleanPhone.length < 6) {
@@ -1440,7 +1569,6 @@
           }
         };
 
-        // ESCUCHAR SOLO EL PEDIDO DEL CLIENTE ACTUAL PARA AVISARLE CON SONIDO CUANDO ESTÉ LISTO
         const watchClientOrder = (orderId) => {
           if (!orderId) return;
           if (unsubscribeGuestOrder) unsubscribeGuestOrder();
@@ -1462,7 +1590,6 @@
           });
         };
 
-        // BUSCAR CÓDIGO ESCANEADO Y FOCALIZAR PRECIO PARA EDICIÓN RÁPIDA SI YA EXISTE
         const handleBarcodeScanned = async () => {
           const code = newProduct.value.sku.trim().toUpperCase();
           if (!code) return;
@@ -2041,15 +2168,15 @@
         };
 
         onMounted(() => {
-          // Detectar si se abrió con ?admin=1 en el mostrador de la tienda
           const params = new URLSearchParams(window.location.search);
           if (params.get('admin') === '1') {
             showPinModal.value = true;
-            // Limpiar el parámetro de la barra de direcciones
             window.history.replaceState({}, document.title, window.location.pathname);
           }
+          if (params.get('list')) {
+            preselectedListIdFromUrl.value = params.get('list');
+          }
 
-          // Detectar evento de instalación automática PWA
           window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredInstallPrompt = e;
@@ -2059,7 +2186,6 @@
             }
           });
 
-          // Mostrar banner guía en móviles si aún no está instalada como app
           const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
           const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
           if (isMobile && !isStandalone) {
@@ -2069,7 +2195,10 @@
           const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
           onSnapshot(qLists, (snapshot) => {
             lists.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (!selectedListId.value && lists.value.length > 0) {
+            if (preselectedListIdFromUrl.value && lists.value.some(l => l.id === preselectedListIdFromUrl.value)) {
+              selectedListId.value = preselectedListIdFromUrl.value;
+              preselectedListIdFromUrl.value = '';
+            } else if (!selectedListId.value && lists.value.length > 0) {
               selectedListId.value = lists.value[0].id;
             }
             loading.value = false;
@@ -2091,7 +2220,9 @@
           loading, saving, processingImage, isAdmin, showPinModal, pinInput, pinError,
           handleSecretLogoTap, exitAdminMode, verifyPin,
           showInstallBanner, triggerPwaInstall,
-          showQrModal, qrCodeImageUrl, printQrCode, copyCleanLink, copiedLink, shareListWhatsapp,
+          showQrModal, qrCodeImageUrl, printQrCode, copyCleanLink, copiedLink,
+          showFamilyQrModal, activeListQrUrl, shareListWhatsappAdmin, shareListWhatsappFamily,
+          downloadFamilyQrImage, copyFamilyDirectLink, copiedFamilyLink,
           isParentUnlocked, showParentPinModal, parentPinInput, parentPinError, openParentPanel, verifyParentPin,
           lists, selectedListId, activeList, onListChange, formatEventDateTime,
           availableProducts, purchasedProducts, totalProductsCount, progressPercentage,
