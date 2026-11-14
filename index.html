@@ -2,7 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#F472B6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mi CasitApp">
   <title>Mi CasitApp - Lista de Deseos</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -12,10 +16,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
   <!-- Vue 3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
-  <!-- Lector de código de barras por cámara (html5-qrcode) -->
+  <!-- Lector de código de barras por cámara -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    body { font-family: 'Quicksand', sans-serif; }
+    body { font-family: 'Quicksand', sans-serif; -webkit-tap-highlight-color: transparent; }
     h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; }
     .bg-gradient-pastel {
       background: linear-gradient(135deg, #FDE2E4 0%, #E2E2FF 50%, #E0F4FF 100%);
@@ -27,13 +31,18 @@
     .toast-enter {
       animation: slideDown 0.35s ease-out forwards;
     }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-qr-area, #printable-qr-area * { visibility: visible; }
+      #printable-qr-area { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; max-width: 360px; }
+    }
   </style>
 </head>
 <body class="bg-gradient-pastel min-h-screen text-slate-700 pb-12">
   <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60 relative">
     
-    <!-- NOTIFICACIÓN FLOTANTE PARA TIENDA (NUEVO PEDIDO) -->
-    <div v-if="newOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
+    <!-- NOTIFICACIÓN FLOTANTE PARA TIENDA (SOLO ACTIVA EN MODO TIENDA) -->
+    <div v-if="isAdmin && newOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
       <div class="bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-3xl p-4 shadow-2xl space-y-2">
         <div class="flex items-start justify-between gap-2">
           <div class="flex items-center gap-2">
@@ -55,7 +64,7 @@
     </div>
 
     <!-- NOTIFICACIÓN FLOTANTE PARA CLIENTE (PEDIDO LISTO PARA RETIRAR) -->
-    <div v-if="readyOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
+    <div v-if="!isAdmin && readyOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
       <div class="bg-white/95 backdrop-blur-md border-2 border-purple-400 rounded-3xl p-4 shadow-2xl space-y-2">
         <div class="flex items-start justify-between gap-2">
           <div class="flex items-center gap-2">
@@ -70,11 +79,26 @@
       </div>
     </div>
 
+    <!-- BANNER DE INSTALACIÓN DE APP (PARA CLIENTES QUE ESCANEAN EL QR) -->
+    <div v-if="!isAdmin && showInstallBanner" class="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-4 py-2.5 flex items-center justify-between gap-2 text-xs shadow-md">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-lg">📲</span>
+        <p class="font-bold truncate">{{ t.installAppPrompt }}</p>
+      </div>
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        <button @click="triggerPwaInstall" class="px-3 py-1 bg-white text-pink-600 font-bold rounded-full text-[11px] shadow-sm">
+          {{ t.installBtn }}
+        </button>
+        <button @click="showInstallBanner = false" class="text-white/80 hover:text-white font-bold px-1">✕</button>
+      </div>
+    </div>
+
     <!-- ENCABEZADO -->
     <header class="p-4 pb-3 flex flex-col gap-2.5 border-b border-pink-100 bg-white/75 backdrop-blur-md sticky top-0 z-30">
       <div class="flex justify-between items-center">
-        <div class="flex items-center gap-2">
-          <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pink-300 to-purple-300 flex items-center justify-center shadow-sm text-white font-bold">
+        <!-- LOGO CON ACCESO OCULTO DE TIENDA (5 TOQUES) -->
+        <div @click="handleSecretLogoTap" class="flex items-center gap-2 cursor-pointer select-none">
+          <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pink-300 to-purple-300 flex items-center justify-center shadow-sm text-white font-bold active:scale-90 transition-transform">
             🎁
           </div>
           <div>
@@ -84,17 +108,24 @@
         </div>
         
         <div class="flex items-center gap-1.5">
-          <!-- BOTÓN VER ESTADO DE MI PEDIDO (PARA CLIENTES) -->
-          <button v-if="!isAdmin" @click="showTrackModal = true" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-white text-purple-600 border border-purple-200 shadow-sm flex items-center gap-1">
-            <span>📦 {{ t.myOrderBtn }}</span>
-            <span v-if="myReadyOrdersCount > 0" class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          <!-- BOTÓN SALIR DE MODO TIENDA (SOLO VISIBLE CUANDO YA ESTÁS LOGUEADO COMO ADMIN) -->
+          <button v-if="isAdmin" @click="exitAdminMode" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-purple-600 text-white shadow-sm">
+            🔒 Salir Tienda
           </button>
 
-          <!-- BOTÓN MODO TIENDA / FAMILIA CON PIN -->
-          <button @click="handleAdminToggle" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border"
-                  :class="isAdmin ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-pink-100 text-pink-700 border-pink-200'">
-            <span>{{ isAdmin ? '⚙️ Tienda' : '❤️ ' + t.familyMode }}</span>
-          </button>
+          <template v-else>
+            <!-- BOTÓN VER ESTADO DE MI PEDIDO (INVITADOS) -->
+            <button @click="showTrackModal = true" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-white text-purple-600 border border-purple-200 shadow-sm flex items-center gap-1">
+              <span>📦 {{ t.myOrderBtn }}</span>
+              <span v-if="myReadyOrdersCount > 0" class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            </button>
+
+            <!-- BOTÓN PANEL DE PADRES / CUMPLEAÑERO -->
+            <button @click="openParentPanel" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border"
+                    :class="isParentUnlocked ? 'bg-pink-500 text-white border-pink-500' : 'bg-pink-100 text-pink-700 border-pink-200'">
+              <span>👨‍👩‍👧 {{ t.familyMode }}</span>
+            </button>
+          </template>
         </div>
       </div>
 
@@ -132,7 +163,6 @@
           {{ liveLastOrder.status === 'ready' ? '🎁' : '⏳' }}
         </div>
 
-        <!-- BADGE DE ESTADO EN TIEMPO REAL -->
         <div>
           <span v-if="liveLastOrder.status === 'ready'" class="inline-block px-4 py-1.5 rounded-full bg-emerald-500 text-white font-bold text-xs shadow-sm">
             {{ t.statusReadyBadge }}
@@ -154,7 +184,6 @@
           <p><span class="font-semibold">{{ t.clientLabel }}:</span> {{ liveLastOrder.buyerName }} ({{ liveLastOrder.phone }})</p>
           <p><span class="font-semibold">{{ t.paymentLabel }}:</span> {{ liveLastOrder.paymentMethod }}</p>
           
-          <!-- Datos de Facturación Legal -->
           <div v-if="liveLastOrder.needInvoice" class="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-0.5 mt-2">
             <p class="font-bold text-purple-600 text-[11px]">🧾 {{ t.invoiceSummaryTitle }}:</p>
             <p><span class="font-semibold">{{ t.rucLabel }}:</span> {{ liveLastOrder.ruc }}</p>
@@ -180,7 +209,6 @@
           </div>
         </div>
 
-        <!-- BOTÓN ENVIAR COMPROBANTE POR WHATSAPP -->
         <a :href="whatsappOrderUrl" target="_blank" class="block w-full py-3 bg-emerald-500 text-white font-bold text-xs rounded-2xl shadow-md hover:bg-emerald-600 transition-all">
           {{ t.sendWhatsappBtn }}
         </a>
@@ -194,29 +222,119 @@
       <template v-else>
 
         <!-- SELECTOR DE LISTA -->
-        <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between">
-          <div class="flex-1">
+        <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between gap-2">
+          <div class="flex-1 min-w-0">
             <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">{{ t.currentListLabel }}</label>
-            <select v-if="lists.length > 0" v-model="selectedListId" @change="selectedIds = []; validationErrors = []" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
+            <select v-if="lists.length > 0" v-model="selectedListId" @change="onListChange" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
               <option v-for="list in lists" :key="list.id" :value="list.id">
                 {{ list.childName }} ({{ list.event }})
               </option>
             </select>
             <p v-else class="text-xs text-slate-500 font-semibold py-1">{{ t.noListsYet }}</p>
           </div>
-          <button v-if="isAdmin" @click="showNewListModal = true" class="ml-2 p-2.5 bg-pink-500 text-white rounded-xl shadow-md text-sm font-bold">
-            + Nueva
-          </button>
+          <div v-if="isAdmin" class="flex gap-1.5 flex-shrink-0">
+            <button @click="showQrModal = true" title="Mostrar QR de descarga e instalación" class="p-2.5 bg-purple-100 text-purple-700 rounded-xl shadow-sm text-xs font-bold border border-purple-200">
+              📱 QR
+            </button>
+            <button @click="showNewListModal = true" class="p-2.5 bg-pink-500 text-white rounded-xl shadow-md text-xs font-bold">
+              + Lista
+            </button>
+          </div>
         </div>
 
         <!-- SI HAY LISTA ACTIVA -->
         <template v-if="activeList">
-          <div class="bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 p-5 rounded-3xl shadow-sm mb-5 text-slate-800">
-            <span class="bg-white/70 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase">
-              {{ activeList.event }}
-            </span>
-            <h2 class="text-2xl font-bold mt-2 leading-tight">{{ t.listTitle(activeList.childName) }}</h2>
-            <p class="text-xs text-slate-600 mt-1">{{ t.listSubtitle }}</p>
+          <!-- TARJETA PRINCIPAL DE LA LISTA CON FECHA Y HORA DEL CUMPLEAÑOS -->
+          <div class="bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 p-5 rounded-3xl shadow-sm mb-5 text-slate-800 space-y-2">
+            <div class="flex items-center justify-between flex-wrap gap-1.5">
+              <span class="bg-white/75 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase">
+                {{ activeList.event }}
+              </span>
+              <span v-if="activeList.eventDate" class="bg-white/85 px-3 py-1 rounded-full text-[11px] font-bold text-purple-700 flex items-center gap-1 shadow-xs">
+                📅 {{ formatEventDateTime(activeList.eventDate, activeList.eventTime) }}
+              </span>
+            </div>
+
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h2 class="text-2xl font-bold mt-1 leading-tight">{{ t.listTitle(activeList.childName) }}</h2>
+                <p class="text-xs text-slate-600 mt-1">{{ t.listSubtitle }}</p>
+              </div>
+              <button v-if="isAdmin" @click="openEditListModal" title="Editar fecha/datos de la lista" class="px-2.5 py-1.5 bg-white/80 hover:bg-white rounded-xl text-xs font-bold text-purple-700 shadow-xs">
+                ✏️ Fecha
+              </button>
+            </div>
+
+            <!-- PIN DE FAMILIA VISIBLE SOLO PARA LA TIENDA PARA ENTREGAR A LOS PADRES -->
+            <div v-if="isAdmin" class="pt-2 border-t border-white/50 flex items-center justify-between text-[11px]">
+              <span class="text-slate-700 font-semibold">🔑 PIN para los padres: <strong class="bg-white px-2 py-0.5 rounded-md text-pink-600 tracking-widest">{{ activeList.familyPin || '1234' }}</strong></span>
+              <button @click="shareListWhatsapp" class="text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg font-bold">
+                📲 Compartir lista
+              </button>
+            </div>
+          </div>
+
+          <!-- PANEL EN VIVO PARA PADRES / CUMPLEAÑERO (ESTADO DE LA CAJA) -->
+          <div v-if="isParentUnlocked && !isAdmin" class="bg-white p-4 rounded-3xl shadow-md border-2 border-pink-300 mb-6 space-y-3">
+            <div class="flex items-center justify-between border-b border-pink-100 pb-2">
+              <div>
+                <h3 class="font-bold text-sm text-pink-600">👨‍👩‍👧 {{ t.parentPanelTitle }}</h3>
+                <p class="text-[11px] text-slate-500">{{ t.parentPanelSub }}</p>
+              </div>
+              <button @click="isParentUnlocked = false" class="text-xs text-slate-400 font-bold px-2 py-1 bg-slate-100 rounded-lg">
+                ✕
+              </button>
+            </div>
+
+            <!-- RESUMEN DE CANTIDADES -->
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                <span class="text-lg font-bold text-slate-800 block">{{ totalProductsCount }}</span>
+                <span class="text-[10px] font-bold text-slate-400 uppercase">{{ t.parentTotalItems }}</span>
+              </div>
+              <div class="bg-emerald-50 p-2.5 rounded-2xl border border-emerald-200">
+                <span class="text-lg font-bold text-emerald-600 block">{{ purchasedProducts.length }}</span>
+                <span class="text-[10px] font-bold text-emerald-700 uppercase">{{ t.parentChosenItems }}</span>
+              </div>
+              <div class="p-2.5 rounded-2xl border"
+                   :class="availableProducts.length <= 2 ? 'bg-amber-50 border-amber-300' : 'bg-purple-50 border-purple-200'">
+                <span class="text-lg font-bold block" :class="availableProducts.length <= 2 ? 'text-amber-600' : 'text-purple-700'">{{ availableProducts.length }}</span>
+                <span class="text-[10px] font-bold uppercase" :class="availableProducts.length <= 2 ? 'text-amber-700' : 'text-purple-600'">{{ t.parentPendingItems }}</span>
+              </div>
+            </div>
+
+            <!-- BARRA DE PROGRESO -->
+            <div class="space-y-1">
+              <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-pink-400 to-emerald-400 transition-all duration-500"
+                     :style="{ width: progressPercentage + '%' }"></div>
+              </div>
+              <p class="text-[11px] font-bold text-center"
+                 :class="availableProducts.length === 0 ? 'text-rose-600' : (availableProducts.length <= 2 ? 'text-amber-600' : 'text-slate-600')">
+                <span v-if="availableProducts.length === 0">🚨 {{ t.parentBoxEmptyAlert }}</span>
+                <span v-else-if="availableProducts.length <= 2">⚠️ {{ t.parentBoxLowAlert(availableProducts.length) }}</span>
+                <span v-else>✨ {{ t.parentBoxHealthy(availableProducts.length) }}</span>
+              </p>
+            </div>
+
+            <!-- DETALLE DE REGALOS ELEGIDOS VS PENDIENTES -->
+            <div class="space-y-2 pt-2 border-t border-slate-100 max-h-60 overflow-y-auto">
+              <div v-if="purchasedProducts.length > 0" class="space-y-1">
+                <p class="text-[10px] font-bold uppercase text-emerald-700">✅ {{ t.parentAlreadyChosenList }} ({{ purchasedProducts.length }}):</p>
+                <div v-for="item in purchasedProducts" :key="item.id" class="flex items-center justify-between bg-emerald-50/70 px-3 py-1.5 rounded-xl text-xs text-slate-700">
+                  <span class="truncate font-semibold">{{ item.emoji || '🎁' }} {{ item.name }}</span>
+                  <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex-shrink-0">{{ t.chosenBadge }}</span>
+                </div>
+              </div>
+
+              <div v-if="availableProducts.length > 0" class="space-y-1 pt-1">
+                <p class="text-[10px] font-bold uppercase text-amber-700">⏳ {{ t.parentStillPendingList }} ({{ availableProducts.length }}):</p>
+                <div v-for="item in availableProducts" :key="item.id" class="flex items-center justify-between bg-amber-50/60 px-3 py-1.5 rounded-xl text-xs text-slate-700">
+                  <span class="truncate">{{ item.emoji || '🎁' }} {{ item.name }}</span>
+                  <span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex-shrink-0">₲{{ item.price.toLocaleString() }}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- FORMULARIO SOLO VISIBLE PARA ADMIN (CON LECTOR DE CÓDIGO DE BARRAS Y MEMORIA DE CATÁLOGO) -->
@@ -246,7 +364,6 @@
                   <span>Cámara</span>
                 </button>
               </div>
-              <p class="text-[10px] text-slate-500">Si ya existe, puedes modificar el precio o datos antes de añadir y se actualizará en el catálogo.</p>
             </div>
             
             <div class="grid grid-cols-4 gap-2">
@@ -340,7 +457,7 @@
             </div>
           </div>
 
-          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE PARA ADMIN) -->
+          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE Y CARGADO CUANDO isAdmin ES TRUE) -->
           <div v-if="isAdmin && listOrders.length > 0" class="bg-purple-50/90 p-4 rounded-3xl border border-purple-200 mb-6 space-y-3">
             <h3 class="font-bold text-sm text-purple-800">📋 Pedidos Recibidos ({{ listOrders.length }})</h3>
             <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3.5 rounded-2xl text-xs space-y-2 shadow-sm border"
@@ -377,7 +494,6 @@
 
               <p v-if="ord.notes" class="text-[11px] text-slate-500 italic pt-1 border-t">Nota: "{{ ord.notes }}"</p>
 
-              <!-- BOTÓN DE ACCIÓN PARA MARCAR PEDIDO LISTO -->
               <div class="pt-2 border-t flex gap-2">
                 <button v-if="ord.status !== 'ready'" 
                         @click="markOrderReady(ord)" 
@@ -507,6 +623,53 @@
 
     </main>
 
+    <!-- MODAL QR PARA MOSTRADOR DE LA TIENDA (INSTALACIÓN AUTOMÁTICA / ACCESO DIRECTO) -->
+    <div v-if="showQrModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-2xl text-center">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h3 class="font-bold text-sm text-purple-700">📱 Código QR de la App</h3>
+          <button @click="showQrModal = false" class="text-slate-400 font-bold text-sm">✕</button>
+        </div>
+
+        <div id="printable-qr-area" class="bg-gradient-to-b from-pink-50 to-purple-50 p-4 rounded-2xl border border-pink-200 space-y-2">
+          <p class="text-xs font-bold text-pink-600 uppercase tracking-wider">La Casita by AGM</p>
+          <h4 class="font-bold text-base text-slate-800">Lista de Regalos</h4>
+          <div class="bg-white p-3 rounded-2xl inline-block shadow-sm border border-pink-100">
+            <img :src="qrCodeImageUrl" alt="Código QR Mi CasitApp" class="w-44 h-44 mx-auto">
+          </div>
+          <p class="text-[11px] text-slate-600 font-semibold leading-snug">
+            Escanea con tu cámara para ver los regalos e instalar la app en tu celular 🎁
+          </p>
+        </div>
+
+        <div class="flex gap-2">
+          <button @click="printQrCode" class="flex-1 py-2.5 bg-purple-600 text-white font-bold text-xs rounded-xl shadow-sm">
+            🖨️ Imprimir cartel
+          </button>
+          <button @click="copyCleanLink" class="flex-1 py-2.5 bg-pink-100 text-pink-700 font-bold text-xs rounded-xl">
+            {{ copiedLink ? '✅ Copiado' : '🔗 Copiar enlace' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL PIN DE FAMILIA (PARA PADRES / CUMPLEAÑERO) -->
+    <div v-if="showParentPinModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl text-center">
+        <div class="w-12 h-12 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center mx-auto text-2xl">
+          👨‍👩‍👧
+        </div>
+        <h3 class="font-bold text-base text-slate-800">{{ t.parentPinTitle }}</h3>
+        <p class="text-xs text-slate-500">{{ t.parentPinSub }}</p>
+        <input v-model="parentPinInput" @keyup.enter="verifyParentPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-lg tracking-widest border border-pink-200 outline-none focus:ring-2 focus:ring-pink-300">
+        <p v-if="parentPinError" class="text-xs text-rose-500 font-semibold">⚠️ {{ t.parentPinWrong }}</p>
+        <div class="flex gap-2 pt-1">
+          <button @click="showParentPinModal = false; parentPinInput = ''; parentPinError = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">{{ t.cancelBtn }}</button>
+          <button @click="verifyParentPin" class="flex-1 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl">{{ t.enterBtn }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL EDITAR PRODUCTO EXISTENTE (MODO TIENDA) -->
     <div v-if="editingProduct" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-3 shadow-2xl">
@@ -542,7 +705,6 @@
           </div>
         </div>
 
-        <!-- Imagen en modal de edición -->
         <div class="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
             <img v-if="editingProduct.image" :src="editingProduct.image" class="w-10 h-10 rounded-xl object-cover flex-shrink-0">
@@ -612,7 +774,7 @@
       </div>
     </div>
 
-    <!-- MODAL CONSULTAR ESTADO DE MI PEDIDO (PARA CLIENTES) -->
+    <!-- MODAL CONSULTAR ESTADO DE MI PEDIDO (PARA INVITADOS) -->
     <div v-if="showTrackModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl max-h-[85vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b pb-2">
@@ -622,11 +784,11 @@
 
         <div>
           <label class="text-[10px] font-bold text-slate-400 uppercase">{{ t.trackPhoneLabel }}</label>
-          <input v-model="trackPhone" type="tel" placeholder="Ej. 0981123456" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 mt-1 outline-none">
+          <input v-model="trackPhone" @input="lookupGuestOrders" type="tel" placeholder="Ej. 0981123456" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 mt-1 outline-none">
         </div>
 
-        <div v-if="trackedOrders.length > 0" class="space-y-2.5">
-          <div v-for="ord in trackedOrders" :key="ord.id" class="p-3 rounded-2xl border text-xs space-y-1.5"
+        <div v-if="guestOrders.length > 0" class="space-y-2.5">
+          <div v-for="ord in guestOrders" :key="ord.id" class="p-3 rounded-2xl border text-xs space-y-1.5"
                :class="ord.status === 'ready' ? 'bg-emerald-50/70 border-emerald-300' : 'bg-amber-50/60 border-amber-200'">
             <div class="flex justify-between items-center font-bold">
               <span class="text-slate-800">{{ t.forLabel }}: {{ ord.childName }}</span>
@@ -651,11 +813,11 @@
       </div>
     </div>
 
-    <!-- MODAL PIN ADMIN -->
-    <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <!-- MODAL PIN ADMIN (SOLO SE ABRE CON 5 TOQUES EN EL LOGO O ?admin=1) -->
+    <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl text-center">
-        <h3 class="font-bold text-base text-slate-800">Acceso Administrador</h3>
-        <p class="text-xs text-slate-500">Ingresa la clave para acceder al Modo Tienda:</p>
+        <h3 class="font-bold text-base text-slate-800">Acceso Tienda</h3>
+        <p class="text-xs text-slate-500">Ingresa la clave de administrador:</p>
         <input v-model="pinInput" @keyup.enter="verifyPin" type="password" inputmode="numeric" placeholder="PIN de acceso" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-base border-0 outline-none focus:ring-2 focus:ring-purple-300">
         <p v-if="pinError" class="text-xs text-red-500 font-semibold">⚠️ Clave incorrecta</p>
         <div class="flex gap-2 pt-1">
@@ -665,9 +827,9 @@
       </div>
     </div>
 
-    <!-- MODAL CREACIÓN DE NUEVA LISTA -->
+    <!-- MODAL CREACIÓN DE NUEVA LISTA (CON FECHA, HORA Y PIN DE FAMILIA) -->
     <div v-if="showNewListModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-3 shadow-xl">
         <h3 class="font-bold text-base text-slate-800">Crear Nueva Lista</h3>
         <div>
           <label class="text-[10px] font-bold text-slate-400 uppercase">Nombre del Cumpleañero/a</label>
@@ -676,6 +838,20 @@
         <div>
           <label class="text-[10px] font-bold text-slate-400 uppercase">Ocasión</label>
           <input v-model="newList.event" type="text" placeholder="ej. Cumpleaños #6" class="w-full p-2 bg-slate-50 rounded-xl text-sm border-0 mt-1">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Fecha del Evento</label>
+            <input v-model="newList.eventDate" type="date" class="w-full p-2 bg-slate-50 rounded-xl text-xs border-0 mt-1">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Hora</label>
+            <input v-model="newList.eventTime" type="time" class="w-full p-2 bg-slate-50 rounded-xl text-xs border-0 mt-1">
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-purple-600 uppercase">PIN para los Padres (4 dígitos)</label>
+          <input v-model="newList.familyPin" type="text" inputmode="numeric" maxlength="4" placeholder="ej. 4821" class="w-full p-2 bg-purple-50 text-purple-700 font-bold tracking-widest rounded-xl text-sm border border-purple-200 mt-1">
         </div>
         <div class="flex gap-2 pt-2">
           <button @click="showNewListModal = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
@@ -686,12 +862,75 @@
       </div>
     </div>
 
+    <!-- MODAL EDITAR FECHA/HORA Y PIN DE LA LISTA -->
+    <div v-if="showEditListModal && editingListData" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-3 shadow-xl">
+        <h3 class="font-bold text-base text-purple-700">✏️ Datos del Cumpleaños</h3>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Cumpleañero/a</label>
+          <input v-model="editingListData.childName" type="text" class="w-full p-2 bg-slate-50 rounded-xl text-sm border-0 mt-1">
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Ocasión</label>
+          <input v-model="editingListData.event" type="text" class="w-full p-2 bg-slate-50 rounded-xl text-sm border-0 mt-1">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Fecha</label>
+            <input v-model="editingListData.eventDate" type="date" class="w-full p-2 bg-slate-50 rounded-xl text-xs border-0 mt-1">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Hora</label>
+            <input v-model="editingListData.eventTime" type="time" class="w-full p-2 bg-slate-50 rounded-xl text-xs border-0 mt-1">
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-purple-600 uppercase">PIN para los Padres</label>
+          <input v-model="editingListData.familyPin" type="text" inputmode="numeric" maxlength="4" class="w-full p-2 bg-purple-50 text-purple-700 font-bold tracking-widest rounded-xl text-sm border border-purple-200 mt-1">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="showEditListModal = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
+          <button @click="saveEditedList" :disabled="saving" class="flex-1 py-2 bg-purple-600 text-white font-bold text-xs rounded-xl">
+            {{ saving ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
+
+  <!-- REGISTRO DE MANIFEST PWA DINÁMICO (PARA INSTALACIÓN AUTOMÁTICA EN PANTALLA COMPLETA) -->
+  <script>
+    (function setupPWA() {
+      const cleanUrl = window.location.origin + window.location.pathname;
+      const manifestData = {
+        name: "Mi CasitApp - Lista de Deseos",
+        short_name: "Mi CasitApp",
+        start_url: cleanUrl,
+        display: "standalone",
+        background_color: "#FDE2E4",
+        theme_color: "#F472B6",
+        icons: [
+          {
+            src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='120' fill='%23F472B6'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='280'%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E",
+            sizes: "512x512",
+            type: "image/svg+xml"
+          }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+      const manifestUrl = URL.createObjectURL(blob);
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestUrl;
+      document.head.appendChild(link);
+    })();
+  </script>
 
   <!-- FIREBASE SDK & APP LOGIC -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDaqmB4gXyefAAJTtYl6Hm2xgami0rul2w",
@@ -713,6 +952,8 @@
         languageLabel: 'Idioma',
         myOrderBtn: 'Mi Pedido',
         familyMode: 'Familia',
+        installAppPrompt: 'Instala Mi CasitApp en tu celular',
+        installBtn: 'Instalar',
         loadingLists: 'Cargando listas de deseos...',
         currentListLabel: 'Lista actual',
         noListsYet: 'Aún no hay listas creadas',
@@ -770,13 +1011,31 @@
         trackPreparingBadge: '⏳ Preparando',
         trackEmptyHint: 'Ingresa el teléfono con el que hiciste tu reserva para ver el estado en vivo.',
         closeBtn: 'Cerrar',
+        cancelBtn: 'Cancelar',
+        enterBtn: 'Entrar',
         toastReadyTitle: '¡Tu Regalo Está Listo!',
-        toastReadyBody: (buyer) => `Hola ${buyer}, ya puedes pasar a retirar por La Casita by AGM.`
+        toastReadyBody: (buyer) => `Hola ${buyer}, ya puedes pasar a retirar por La Casita by AGM.`,
+        parentPinTitle: 'Acceso Padres / Cumpleañero',
+        parentPinSub: 'Ingresa el PIN de 4 dígitos de esta lista para ver cuántos regalos ya eligieron los invitados:',
+        parentPinWrong: 'PIN incorrecto para esta lista',
+        parentPanelTitle: 'Estado de la Caja de Regalos',
+        parentPanelSub: 'Seguimiento en tiempo real para la familia',
+        parentTotalItems: 'Total Lista',
+        parentChosenItems: 'Elegidos',
+        parentPendingItems: 'Pendientes',
+        parentBoxEmptyAlert: '¡La caja se vació! Todos los regalos fueron elegidos. Pasa por la tienda si faltan invitados.',
+        parentBoxLowAlert: (n) => `¡Atención! Solo quedan ${n} regalo(s) disponible(s) en la caja.`,
+        parentBoxHealthy: (n) => `Aún quedan ${n} regalos disponibles para los invitados.`,
+        parentAlreadyChosenList: 'Regalos ya elegidos',
+        parentStillPendingList: 'Regalos aún pendientes',
+        chosenBadge: 'Elegido'
       },
       de: {
         languageLabel: 'Sprache',
         myOrderBtn: 'Bestellung',
         familyMode: 'Familie',
+        installAppPrompt: 'Mi CasitApp auf dem Handy installieren',
+        installBtn: 'Installieren',
         loadingLists: 'Wunschlisten werden geladen...',
         currentListLabel: 'Aktuelle Wunschliste',
         noListsYet: 'Noch keine Wunschlisten erstellt',
@@ -834,13 +1093,31 @@
         trackPreparingBadge: '⏳ In Vorbereitung',
         trackEmptyHint: 'Gib deine Telefonnummer ein, um den aktuellen Status deiner Bestellung zu sehen.',
         closeBtn: 'Schließen',
+        cancelBtn: 'Abbrechen',
+        enterBtn: 'Öffnen',
         toastReadyTitle: 'Dein Geschenk ist fertig!',
-        toastReadyBody: (buyer) => `Hallo ${buyer}, dein Geschenk kann jetzt bei La Casita by AGM abgeholt werden.`
+        toastReadyBody: (buyer) => `Hallo ${buyer}, dein Geschenk kann jetzt bei La Casita by AGM abgeholt werden.`,
+        parentPinTitle: 'Eltern- / Familienbereich',
+        parentPinSub: 'Gib den 4-stelligen PIN dieser Liste ein, um den Stand der Geschenke zu sehen:',
+        parentPinWrong: 'Falscher PIN für diese Liste',
+        parentPanelTitle: 'Status der Geschenkbox',
+        parentPanelSub: 'Live-Übersicht für die Familie',
+        parentTotalItems: 'Gesamt',
+        parentChosenItems: 'Gewählt',
+        parentPendingItems: 'Offen',
+        parentBoxEmptyAlert: 'Die Geschenkbox ist leer! Alle Geschenke wurden gewählt.',
+        parentBoxLowAlert: (n) => `Achtung! Es sind nur noch ${n} Geschenk(e) verfügbar.`,
+        parentBoxHealthy: (n) => `Es sind noch ${n} Geschenke für Gäste verfügbar.`,
+        parentAlreadyChosenList: 'Bereits gewählte Geschenke',
+        parentStillPendingList: 'Noch offene Geschenke',
+        chosenBadge: 'Gewählt'
       },
       en: {
         languageLabel: 'Language',
         myOrderBtn: 'My Order',
         familyMode: 'Family',
+        installAppPrompt: 'Install Mi CasitApp on your phone',
+        installBtn: 'Install',
         loadingLists: 'Loading wishlists...',
         currentListLabel: 'Current wishlist',
         noListsYet: 'No wishlists created yet',
@@ -898,8 +1175,24 @@
         trackPreparingBadge: '⏳ Preparing',
         trackEmptyHint: 'Enter the phone number used for your reservation to check live status.',
         closeBtn: 'Close',
+        cancelBtn: 'Cancel',
+        enterBtn: 'Enter',
         toastReadyTitle: 'Your Gift Is Ready!',
-        toastReadyBody: (buyer) => `Hi ${buyer}, your gift is ready for pickup at La Casita by AGM.`
+        toastReadyBody: (buyer) => `Hi ${buyer}, your gift is ready for pickup at La Casita by AGM.`,
+        parentPinTitle: 'Parents / Birthday Host Access',
+        parentPinSub: 'Enter the 4-digit list PIN to track how many gifts have been chosen:',
+        parentPinWrong: 'Incorrect PIN for this list',
+        parentPanelTitle: 'Gift Box Live Status',
+        parentPanelSub: 'Real-time tracking for parents',
+        parentTotalItems: 'Total',
+        parentChosenItems: 'Chosen',
+        parentPendingItems: 'Remaining',
+        parentBoxEmptyAlert: 'The gift box is empty! All gifts have been chosen. Visit the store if more guests are coming.',
+        parentBoxLowAlert: (n) => `Heads up! Only ${n} gift(s) left available in the box.`,
+        parentBoxHealthy: (n) => `${n} gifts are still available for guests.`,
+        parentAlreadyChosenList: 'Already chosen gifts',
+        parentStillPendingList: 'Still available gifts',
+        chosenBadge: 'Chosen'
       }
     };
 
@@ -920,12 +1213,117 @@
         const ADMIN_PIN = '21162430';
         const STORE_WHATSAPP = '595981925071';
 
+        // ACCESO OCULTO DE TIENDA (5 TOQUES EN LOGO O ?admin=1)
+        let secretTapCount = 0;
+        let secretTapTimer = null;
         const showPinModal = ref(false);
         const pinInput = ref('');
         const pinError = ref(false);
 
+        const handleSecretLogoTap = () => {
+          if (isAdmin.value) return;
+          secretTapCount++;
+          clearTimeout(secretTapTimer);
+          secretTapTimer = setTimeout(() => { secretTapCount = 0; }, 1800);
+          if (secretTapCount >= 5) {
+            secretTapCount = 0;
+            showPinModal.value = true;
+            pinInput.value = '';
+            pinError.value = false;
+          }
+        };
+
+        const exitAdminMode = () => {
+          isAdmin.value = false;
+          newOrderToast.value = null;
+          if (unsubscribeAdminOrders) {
+            unsubscribeAdminOrders();
+            unsubscribeAdminOrders = null;
+          }
+          adminOrders.value = [];
+        };
+
+        // INSTALACIÓN PWA (BANNER PARA CLIENTES)
+        const showInstallBanner = ref(false);
+        let deferredInstallPrompt = null;
+
+        const triggerPwaInstall = async () => {
+          if (deferredInstallPrompt) {
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            showInstallBanner.value = false;
+          } else {
+            alert("Para instalar la app en tu celular:\n• En Android / Chrome: toca los 3 puntos (⋮) arriba a la derecha y elige 'Instalar aplicación' o 'Añadir a pantalla de inicio'.\n• En iPhone / Safari: toca el ícono Compartir (□↑) abajo y selecciona 'Añadir a pantalla de inicio'.");
+          }
+        };
+
+        // QR DE MOSTRADOR Y ENLACE LIMPIO
+        const showQrModal = ref(false);
+        const copiedLink = ref(false);
+        const cleanAppUrl = computed(() => {
+          return window.location.origin + window.location.pathname;
+        });
+        const qrCodeImageUrl = computed(() => {
+          return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&color=1E293B&data=${encodeURIComponent(cleanAppUrl.value)}`;
+        });
+
+        const printQrCode = () => {
+          window.print();
+        };
+
+        const copyCleanLink = async () => {
+          try {
+            await navigator.clipboard.writeText(cleanAppUrl.value);
+            copiedLink.value = true;
+            setTimeout(() => { copiedLink.value = false; }, 2500);
+          } catch (e) {
+            alert(cleanAppUrl.value);
+          }
+        };
+
+        const shareListWhatsapp = () => {
+          if (!activeList.value) return;
+          const dateStr = activeList.value.eventDate ? `\n📅 Fecha: ${formatEventDateTime(activeList.value.eventDate, activeList.value.eventTime)}` : '';
+          const msg = `🎁 *Lista de Regalos de ${activeList.value.childName}* (${activeList.value.event})${dateStr}\n\n` +
+                      `Elige tu regalo aquí:\n${cleanAppUrl.value}\n\n` +
+                      `🔑 *PIN exclusivo para los padres:* ${activeList.value.familyPin || '1234'}`;
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
+        // PANEL DE PADRES / CUMPLEAÑERO
+        const isParentUnlocked = ref(false);
+        const showParentPinModal = ref(false);
+        const parentPinInput = ref('');
+        const parentPinError = ref(false);
+
+        const openParentPanel = () => {
+          if (!activeList.value) return;
+          if (isParentUnlocked.value) {
+            isParentUnlocked.value = false;
+            return;
+          }
+          showParentPinModal.value = true;
+          parentPinInput.value = '';
+          parentPinError.value = false;
+        };
+
+        const verifyParentPin = () => {
+          if (!activeList.value) return;
+          const expectedPin = String(activeList.value.familyPin || '1234').trim();
+          if (String(parentPinInput.value).trim() === expectedPin) {
+            isParentUnlocked.value = true;
+            showParentPinModal.value = false;
+            parentPinError.value = false;
+          } else {
+            parentPinError.value = true;
+          }
+        };
+
         const giftBagPrice = ref(10000);
         const showNewListModal = ref(false);
+        const showEditListModal = ref(false);
+        const editingListData = ref(null);
         const showTrackModal = ref(false);
         const showCameraModal = ref(false);
         const previewProduct = ref(null);
@@ -939,9 +1337,13 @@
         let html5QrScanner = null;
 
         const trackPhone = ref(localStorage.getItem('micasitapp_buyer_phone') || '');
+        const guestOrders = ref([]);
 
         const lists = ref([]);
-        const orders = ref([]);
+        const adminOrders = ref([]);
+        let unsubscribeAdminOrders = null;
+        let unsubscribeGuestOrder = null;
+
         const selectedListId = ref('');
         const selectedIds = ref([]);
         const includeGiftBag = ref(false);
@@ -954,7 +1356,6 @@
         const readyOrderToast = ref(null);
         let initialOrdersLoaded = false;
         let knownOrderIds = new Set();
-        let knownOrderStatuses = new Map();
 
         const validationErrors = ref([]);
         const missingFields = ref({
@@ -970,9 +1371,96 @@
           { id: 'cash', name: t.value.payCash }
         ]);
 
-        const newList = ref({ childName: '', event: '' });
+        const generateRandomPin = () => String(Math.floor(1000 + Math.random() * 9000));
+
+        const newList = ref({ childName: '', event: '', eventDate: '', eventTime: '', familyPin: generateRandomPin() });
         const newProduct = ref({ name: '', sku: '', price: null, emoji: '', desc: '', image: '' });
         const buyer = ref({ name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' });
+
+        const formatEventDateTime = (dateStr, timeStr) => {
+          if (!dateStr) return '';
+          const parts = dateStr.split('-');
+          const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+          return timeStr ? `${formattedDate} • ${timeStr} hs` : formattedDate;
+        };
+
+        const onListChange = () => {
+          selectedIds.value = [];
+          validationErrors.value = [];
+          isParentUnlocked.value = false;
+        };
+
+        // SUSCRIPCIÓN DE PEDIDOS SOLO CUANDO SE ACTIVA MODO TIENDA
+        const startAdminOrdersListener = () => {
+          if (unsubscribeAdminOrders) unsubscribeAdminOrders();
+          initialOrdersLoaded = false;
+          knownOrderIds = new Set();
+
+          const qOrders = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+          unsubscribeAdminOrders = onSnapshot(qOrders, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (!initialOrdersLoaded) {
+              fetchedOrders.forEach(o => knownOrderIds.add(o.id));
+              initialOrdersLoaded = true;
+            } else {
+              fetchedOrders.forEach(o => {
+                if (!knownOrderIds.has(o.id)) {
+                  knownOrderIds.add(o.id);
+                  if (isAdmin.value) {
+                    playNotificationSound();
+                    newOrderToast.value = o;
+                    setTimeout(() => {
+                      if (newOrderToast.value && newOrderToast.value.id === o.id) {
+                        newOrderToast.value = null;
+                      }
+                    }, 12000);
+                  }
+                }
+              });
+            }
+            adminOrders.value = fetchedOrders;
+          });
+        };
+
+        // CONSULTAR PEDIDOS PUNTUALES DEL INVITADO POR TELÉFONO (SIN EXPONER TODOS LOS PEDIDOS)
+        const lookupGuestOrders = async () => {
+          const cleanPhone = trackPhone.value.replace(/\D/g, '');
+          if (cleanPhone.length < 6) {
+            guestOrders.value = [];
+            return;
+          }
+          try {
+            const q = query(collection(db, "orders"), where("cleanPhone", "==", cleanPhone));
+            const snap = await getDocs(q);
+            guestOrders.value = snap.docs
+              .map(d => ({ id: d.id, ...d.data() }))
+              .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        // ESCUCHAR SOLO EL PEDIDO DEL CLIENTE ACTUAL PARA AVISARLE CON SONIDO CUANDO ESTÉ LISTO
+        const watchClientOrder = (orderId) => {
+          if (!orderId) return;
+          if (unsubscribeGuestOrder) unsubscribeGuestOrder();
+          let prevStatus = 'preparing';
+          unsubscribeGuestOrder = onSnapshot(doc(db, "orders", orderId), (docSnap) => {
+            if (!docSnap.exists()) return;
+            const data = { id: docSnap.id, ...docSnap.data() };
+            lastOrderSnapshot.value = data;
+            if (prevStatus !== 'ready' && data.status === 'ready' && !isAdmin.value) {
+              playNotificationSound();
+              readyOrderToast.value = data;
+              setTimeout(() => {
+                if (readyOrderToast.value && readyOrderToast.value.id === data.id) {
+                  readyOrderToast.value = null;
+                }
+              }, 15000);
+            }
+            prevStatus = data.status || 'preparing';
+          });
+        };
 
         // BUSCAR CÓDIGO ESCANEADO Y FOCALIZAR PRECIO PARA EDICIÓN RÁPIDA SI YA EXISTE
         const handleBarcodeScanned = async () => {
@@ -982,7 +1470,6 @@
           scanFeedback.value = 'Buscando código...';
 
           try {
-            // 1. Buscar en colección 'catalog' de Firestore
             const catalogRef = doc(db, "catalog", code);
             const catalogSnap = await getDoc(catalogRef);
 
@@ -1004,7 +1491,6 @@
               return;
             }
 
-            // 2. Buscar en productos cargados anteriormente en otras listas
             for (const list of lists.value) {
               if (list.products) {
                 const found = list.products.find(p => (p.sku || '').toUpperCase() === code);
@@ -1027,7 +1513,6 @@
               }
             }
 
-            // 3. Si es un código nuevo, mover foco al nombre
             scanFeedback.value = '🆕 Código nuevo: completa nombre y precio';
             setTimeout(() => { scanFeedback.value = ''; }, 4000);
             nextTick(() => {
@@ -1039,7 +1524,6 @@
           }
         };
 
-        // ABRIR MODAL PARA EDITAR PRODUCTO YA AGREGADO A LA LISTA
         const openEditModal = (product) => {
           editingProduct.value = { ...product };
         };
@@ -1084,7 +1568,6 @@
               products: updatedProducts
             });
 
-            // Actualizar también en el catálogo maestro si tiene SKU
             if (cleanSku) {
               await setDoc(doc(db, "catalog", cleanSku), {
                 sku: cleanSku,
@@ -1105,7 +1588,6 @@
           }
         };
 
-        // ABRIR ESCÁNER DE CÁMARA PARA CELULAR
         const openCameraScanner = async () => {
           showCameraModal.value = true;
           await nextTick();
@@ -1139,7 +1621,6 @@
           showCameraModal.value = false;
         };
 
-        // COMPRESIÓN AUTOMÁTICA DE IMAGEN
         const compressImageFile = (file) => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -1217,9 +1698,7 @@
 
             playTone(587.33, now, 0.25);
             playTone(880.00, now + 0.14, 0.45);
-          } catch (e) {
-            console.warn("Audio bloqueado hasta interacción del usuario:", e);
-          }
+          } catch (e) {}
         };
 
         const activeList = computed(() => {
@@ -1231,27 +1710,32 @@
           return activeList.value.products.filter(p => !p.purchased);
         });
 
+        const purchasedProducts = computed(() => {
+          if (!activeList.value || !activeList.value.products) return [];
+          return activeList.value.products.filter(p => p.purchased);
+        });
+
+        const totalProductsCount = computed(() => {
+          if (!activeList.value || !activeList.value.products) return 0;
+          return activeList.value.products.length;
+        });
+
+        const progressPercentage = computed(() => {
+          if (totalProductsCount.value === 0) return 0;
+          return Math.round((purchasedProducts.value.length / totalProductsCount.value) * 100);
+        });
+
         const listOrders = computed(() => {
-          if (!activeList.value) return [];
-          return orders.value.filter(o => o.listId === activeList.value.id);
+          if (!activeList.value || !isAdmin.value) return [];
+          return adminOrders.value.filter(o => o.listId === activeList.value.id);
         });
 
         const liveLastOrder = computed(() => {
-          if (lastOrderId.value) {
-            const found = orders.value.find(o => o.id === lastOrderId.value);
-            if (found) return found;
-          }
           return lastOrderSnapshot.value;
         });
 
-        const trackedOrders = computed(() => {
-          const cleanPhone = trackPhone.value.replace(/\D/g, '');
-          if (cleanPhone.length < 5) return [];
-          return orders.value.filter(o => (o.phone || '').replace(/\D/g, '').includes(cleanPhone));
-        });
-
         const myReadyOrdersCount = computed(() => {
-          return trackedOrders.value.filter(o => o.status === 'ready').length;
+          return guestOrders.value.filter(o => o.status === 'ready').length;
         });
 
         const subtotal = computed(() => {
@@ -1308,23 +1792,14 @@
           }
         };
 
-        const handleAdminToggle = () => {
-          if (isAdmin.value) {
-            isAdmin.value = false;
-            newOrderToast.value = null;
-          } else {
-            showPinModal.value = true;
-            pinInput.value = '';
-            pinError.value = false;
-          }
-        };
-
         const verifyPin = () => {
           if (String(pinInput.value).trim() === ADMIN_PIN) {
             isAdmin.value = true;
+            isParentUnlocked.value = false;
             showPinModal.value = false;
             pinError.value = false;
             playNotificationSound();
+            startAdminOrdersListener();
             nextTick(() => {
               if (skuInputRef.value) skuInputRef.value.focus();
             });
@@ -1352,16 +1827,51 @@
           try {
             const docRef = await addDoc(collection(db, "wishlists"), {
               childName: name,
-              event: newList.value.event.trim() || 'Evento Especial',
+              event: newList.value.event.trim() || 'Cumpleaños',
+              eventDate: newList.value.eventDate || '',
+              eventTime: newList.value.eventTime || '',
+              familyPin: (newList.value.familyPin || generateRandomPin()).trim(),
               products: [],
               createdAt: Date.now()
             });
             selectedListId.value = docRef.id;
-            newList.value = { childName: '', event: '' };
+            newList.value = { childName: '', event: '', eventDate: '', eventTime: '', familyPin: generateRandomPin() };
             showNewListModal.value = false;
           } catch (e) {
             console.error(e);
             alert("No se pudo guardar en Firebase: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
+
+        const openEditListModal = () => {
+          if (!activeList.value) return;
+          editingListData.value = {
+            id: activeList.value.id,
+            childName: activeList.value.childName || '',
+            event: activeList.value.event || '',
+            eventDate: activeList.value.eventDate || '',
+            eventTime: activeList.value.eventTime || '',
+            familyPin: activeList.value.familyPin || '1234'
+          };
+          showEditListModal.value = true;
+        };
+
+        const saveEditedList = async () => {
+          if (!editingListData.value || !editingListData.value.childName.trim()) return;
+          saving.value = true;
+          try {
+            await updateDoc(doc(db, "wishlists", editingListData.value.id), {
+              childName: editingListData.value.childName.trim(),
+              event: editingListData.value.event.trim() || 'Cumpleaños',
+              eventDate: editingListData.value.eventDate || '',
+              eventTime: editingListData.value.eventTime || '',
+              familyPin: (editingListData.value.familyPin || '1234').trim()
+            });
+            showEditListModal.value = false;
+          } catch (e) {
+            alert("Error al actualizar datos de la lista: " + e.message);
           } finally {
             saving.value = false;
           }
@@ -1470,11 +1980,14 @@
               .filter(p => selectedIds.value.includes(p.id))
               .map(({ image, ...rest }) => rest);
 
+            const cleanDigitsPhone = buyerPhone.replace(/\D/g, '');
+
             const orderData = {
               listId: activeList.value.id,
               childName: activeList.value.childName,
               buyerName: buyerName,
               phone: buyerPhone,
+              cleanPhone: cleanDigitsPhone,
               needInvoice: buyer.value.needInvoice,
               ruc: buyer.value.ruc.trim(),
               invoiceName: buyer.value.invoiceName.trim(),
@@ -1494,6 +2007,9 @@
             trackPhone.value = buyerPhone;
             localStorage.setItem('micasitapp_last_order_id', orderDocRef.id);
             localStorage.setItem('micasitapp_buyer_phone', buyerPhone);
+
+            watchClientOrder(orderDocRef.id);
+            await lookupGuestOrders();
 
             const updatedProducts = activeList.value.products.map(p => {
               if (selectedIds.value.includes(p.id)) {
@@ -1525,6 +2041,31 @@
         };
 
         onMounted(() => {
+          // Detectar si se abrió con ?admin=1 en el mostrador de la tienda
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('admin') === '1') {
+            showPinModal.value = true;
+            // Limpiar el parámetro de la barra de direcciones
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+
+          // Detectar evento de instalación automática PWA
+          window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            if (!isStandalone) {
+              showInstallBanner.value = true;
+            }
+          });
+
+          // Mostrar banner guía en móviles si aún no está instalada como app
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+          const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          if (isMobile && !isStandalone) {
+            showInstallBanner.value = true;
+          }
+
           const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
           onSnapshot(qLists, (snapshot) => {
             lists.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1537,68 +2078,31 @@
             loading.value = false;
           });
 
-          const qOrders = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-          onSnapshot(qOrders, (snapshot) => {
-            const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-            if (!initialOrdersLoaded) {
-              fetchedOrders.forEach(o => {
-                knownOrderIds.add(o.id);
-                knownOrderStatuses.set(o.id, o.status || 'preparing');
-              });
-              initialOrdersLoaded = true;
-            } else {
-              fetchedOrders.forEach(o => {
-                if (!knownOrderIds.has(o.id)) {
-                  knownOrderIds.add(o.id);
-                  knownOrderStatuses.set(o.id, o.status || 'preparing');
-                  if (isAdmin.value) {
-                    playNotificationSound();
-                    newOrderToast.value = o;
-                    setTimeout(() => {
-                      if (newOrderToast.value && newOrderToast.value.id === o.id) {
-                        newOrderToast.value = null;
-                      }
-                    }, 12000);
-                  }
-                } else {
-                  const prevStatus = knownOrderStatuses.get(o.id);
-                  const currentStatus = o.status || 'preparing';
-                  if (prevStatus !== 'ready' && currentStatus === 'ready') {
-                    const cleanMyPhone = trackPhone.value.replace(/\D/g, '');
-                    const cleanOrderPhone = (o.phone || '').replace(/\D/g, '');
-                    const isMyOrder = o.id === lastOrderId.value || (cleanMyPhone.length >= 5 && cleanOrderPhone.includes(cleanMyPhone));
-
-                    if (!isAdmin.value && isMyOrder) {
-                      playNotificationSound();
-                      readyOrderToast.value = o;
-                      setTimeout(() => {
-                        if (readyOrderToast.value && readyOrderToast.value.id === o.id) {
-                          readyOrderToast.value = null;
-                        }
-                      }, 15000);
-                    }
-                  }
-                  knownOrderStatuses.set(o.id, currentStatus);
-                }
-              });
-            }
-
-            orders.value = fetchedOrders;
-          });
+          if (lastOrderId.value) {
+            watchClientOrder(lastOrderId.value);
+          }
+          if (trackPhone.value) {
+            lookupGuestOrders();
+          }
         });
 
         return {
           lang, t, setLang,
           loading, saving, processingImage, isAdmin, showPinModal, pinInput, pinError,
-          handleAdminToggle, verifyPin, lists, selectedListId, activeList,
-          availableProducts, listOrders, selectedIds, includeGiftBag,
+          handleSecretLogoTap, exitAdminMode, verifyPin,
+          showInstallBanner, triggerPwaInstall,
+          showQrModal, qrCodeImageUrl, printQrCode, copyCleanLink, copiedLink, shareListWhatsapp,
+          isParentUnlocked, showParentPinModal, parentPinInput, parentPinError, openParentPanel, verifyParentPin,
+          lists, selectedListId, activeList, onListChange, formatEventDateTime,
+          availableProducts, purchasedProducts, totalProductsCount, progressPercentage,
+          listOrders, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, localizedPaymentMethods, newProduct, newList,
+          showEditListModal, editingListData, openEditListModal, saveEditedList,
           fileInputRef, skuInputRef, nameInputRef, priceInputRef, scanFeedback,
           handleBarcodeScanned, showCameraModal, openCameraScanner, closeCameraScanner,
           handleImageUpload, clearProductImage, previewProduct,
           editingProduct, openEditModal, handleEditImageUpload, saveEditedProduct,
-          showNewListModal, showTrackModal, trackPhone, trackedOrders, myReadyOrdersCount,
+          showNewListModal, showTrackModal, trackPhone, guestOrders, lookupGuestOrders, myReadyOrdersCount,
           buyer, subtotal, total, orderCompleted, liveLastOrder,
           newOrderToast, readyOrderToast, playNotificationSound,
           whatsappOrderUrl, getClientReadyWhatsappUrl, markOrderReady,
