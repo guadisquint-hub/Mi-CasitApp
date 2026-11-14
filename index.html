@@ -30,7 +30,7 @@
 <body class="bg-gradient-pastel min-h-screen text-slate-700 pb-12">
   <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60 relative">
     
-    <!-- NOTIFICACIÓN FLOTANTE DE PEDIDO NUEVO (MODO TIENDA) -->
+    <!-- NOTIFICACIÓN FLOTANTE PARA TIENDA (NUEVO PEDIDO) -->
     <div v-if="newOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
       <div class="bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-3xl p-4 shadow-2xl space-y-2">
         <div class="flex items-start justify-between gap-2">
@@ -52,80 +52,139 @@
       </div>
     </div>
 
-    <!-- ENCABEZADO -->
-    <header class="p-5 pb-3 flex justify-between items-center border-b border-pink-100 bg-white/70 backdrop-blur-md sticky top-0 z-30">
-      <div class="flex items-center gap-2">
-        <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pink-300 to-purple-300 flex items-center justify-center shadow-sm text-white font-bold">
-          🎁
-        </div>
-        <div>
-          <h1 class="text-xl font-bold tracking-tight text-pink-600 leading-none">Mi CasitApp</h1>
-          <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">La Casita by AGM</span>
+    <!-- NOTIFICACIÓN FLOTANTE PARA CLIENTE (PEDIDO LISTO PARA RETIRAR) -->
+    <div v-if="readyOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
+      <div class="bg-white/95 backdrop-blur-md border-2 border-purple-400 rounded-3xl p-4 shadow-2xl space-y-2">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-9 h-9 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-lg font-bold animate-bounce">🎁</span>
+            <div>
+              <p class="text-xs font-bold text-purple-700 uppercase tracking-wide">{{ t.toastReadyTitle }}</p>
+              <p class="text-[11px] text-slate-600">{{ t.toastReadyBody(readyOrderToast.buyerName) }}</p>
+            </div>
+          </div>
+          <button @click="readyOrderToast = null" class="text-slate-400 hover:text-slate-600 font-bold text-sm px-1.5">✕</button>
         </div>
       </div>
-      
-      <!-- BOTÓN MODO TIENDA / FAMILIA CON PIN -->
-      <button @click="handleAdminToggle" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm border"
-              :class="isAdmin ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-pink-100 text-pink-700 border-pink-200'">
-        <span>{{ isAdmin ? '⚙️ Modo Tienda' : '❤️ Modo Familia' }}</span>
-      </button>
+    </div>
+
+    <!-- ENCABEZADO -->
+    <header class="p-4 pb-3 flex flex-col gap-2.5 border-b border-pink-100 bg-white/75 backdrop-blur-md sticky top-0 z-30">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-pink-300 to-purple-300 flex items-center justify-center shadow-sm text-white font-bold">
+            🎁
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight text-pink-600 leading-none">Mi CasitApp</h1>
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">La Casita by AGM</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-1.5">
+          <!-- BOTÓN VER ESTADO DE MI PEDIDO (PARA CLIENTES) -->
+          <button v-if="!isAdmin" @click="showTrackModal = true" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold bg-white text-purple-600 border border-purple-200 shadow-sm flex items-center gap-1">
+            <span>📦 {{ t.myOrderBtn }}</span>
+            <span v-if="myReadyOrdersCount > 0" class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          </button>
+
+          <!-- BOTÓN MODO TIENDA / FAMILIA CON PIN -->
+          <button @click="handleAdminToggle" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border"
+                  :class="isAdmin ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-pink-100 text-pink-700 border-pink-200'">
+            <span>{{ isAdmin ? '⚙️ Tienda' : '❤️ ' + t.familyMode }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SELECTOR DE IDIOMA (ES / DE / EN) -->
+      <div class="flex items-center justify-end gap-1.5 pt-1 border-t border-pink-50">
+        <span class="text-[10px] text-slate-400 font-bold uppercase mr-1">{{ t.languageLabel }}:</span>
+        <button @click="setLang('es')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
+                :class="lang === 'es' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
+          🇪🇸 ES
+        </button>
+        <button @click="setLang('de')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
+                :class="lang === 'de' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
+          🇩🇪 DE
+        </button>
+        <button @click="setLang('en')" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all border"
+                :class="lang === 'en' ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-white/80 text-slate-600 border-slate-200'">
+          🇺🇸 EN
+        </button>
+      </div>
     </header>
 
     <!-- PANTALLA DE CARGA INICIAL -->
     <div v-if="loading" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
       <div class="text-4xl animate-bounce mb-2">🎁</div>
-      <p class="text-sm font-bold text-pink-600">Cargando listas de deseos...</p>
+      <p class="text-sm font-bold text-pink-600">{{ t.loadingLists }}</p>
     </div>
 
     <!-- CONTENIDO -->
     <main v-else class="flex-1 p-4">
 
-      <!-- CONFIRMACIÓN DE PEDIDO -->
-      <section v-if="orderCompleted" class="space-y-4 text-center py-6">
-        <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-500 text-3xl shadow-inner">
-          ✓
+      <!-- CONFIRMACIÓN DE PEDIDO EN VIVO -->
+      <section v-if="orderCompleted && liveLastOrder" class="space-y-4 text-center py-6">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner transition-all"
+             :class="liveLastOrder.status === 'ready' ? 'bg-emerald-100 text-emerald-600 animate-bounce' : 'bg-amber-100 text-amber-500'">
+          {{ liveLastOrder.status === 'ready' ? '🎁' : '⏳' }}
         </div>
-        <h2 class="text-2xl font-bold text-slate-800">¡Pedido Confirmado!</h2>
-        <p class="text-sm text-slate-600 px-4">Hemos reservado los regalos para <strong>{{ activeList.childName }}</strong>.</p>
+
+        <!-- BADGE DE ESTADO EN TIEMPO REAL -->
+        <div>
+          <span v-if="liveLastOrder.status === 'ready'" class="inline-block px-4 py-1.5 rounded-full bg-emerald-500 text-white font-bold text-xs shadow-sm">
+            {{ t.statusReadyBadge }}
+          </span>
+          <span v-else class="inline-block px-4 py-1.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs border border-amber-200">
+            {{ t.statusPreparingBadge }}
+          </span>
+        </div>
+
+        <h2 class="text-2xl font-bold text-slate-800">
+          {{ liveLastOrder.status === 'ready' ? t.orderReadyHeading : t.orderConfirmedHeading }}
+        </h2>
+        <p class="text-xs text-slate-600 px-4">
+          {{ liveLastOrder.status === 'ready' ? t.orderReadySub : t.orderConfirmedSub }}
+        </p>
         
         <div class="bg-white p-4 rounded-2xl shadow-sm text-left border border-slate-100 text-xs space-y-2">
-          <p class="font-bold border-b pb-1 text-slate-800">Resumen del pedido:</p>
-          <p><span class="font-semibold">Cliente:</span> {{ lastOrder.buyerName }} ({{ lastOrder.phone }})</p>
-          <p><span class="font-semibold">Pago:</span> {{ lastOrder.paymentMethod }}</p>
+          <p class="font-bold border-b pb-1 text-slate-800">{{ t.orderSummaryTitle }}</p>
+          <p><span class="font-semibold">{{ t.clientLabel }}:</span> {{ liveLastOrder.buyerName }} ({{ liveLastOrder.phone }})</p>
+          <p><span class="font-semibold">{{ t.paymentLabel }}:</span> {{ liveLastOrder.paymentMethod }}</p>
           
           <!-- Datos de Facturación Legal -->
-          <div v-if="lastOrder.needInvoice" class="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-0.5 mt-2">
-            <p class="font-bold text-purple-600 text-[11px]">🧾 Requiere Factura Legal:</p>
-            <p><span class="font-semibold">RUC / C.I.:</span> {{ lastOrder.ruc }}</p>
-            <p><span class="font-semibold">Razón Social:</span> {{ lastOrder.invoiceName }}</p>
+          <div v-if="liveLastOrder.needInvoice" class="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-0.5 mt-2">
+            <p class="font-bold text-purple-600 text-[11px]">🧾 {{ t.invoiceSummaryTitle }}:</p>
+            <p><span class="font-semibold">{{ t.rucLabel }}:</span> {{ liveLastOrder.ruc }}</p>
+            <p><span class="font-semibold">{{ t.companyNameLabel }}:</span> {{ liveLastOrder.invoiceName }}</p>
           </div>
 
-          <p v-if="lastOrder.notes"><span class="font-semibold">Nota:</span> {{ lastOrder.notes }}</p>
+          <p v-if="liveLastOrder.notes"><span class="font-semibold">{{ t.noteLabel }}:</span> {{ liveLastOrder.notes }}</p>
           
           <div class="border-t pt-2 space-y-1">
-            <div v-for="item in lastOrder.items" :key="item.id" class="flex justify-between">
+            <div v-for="item in liveLastOrder.items" :key="item.id" class="flex justify-between">
               <span>{{ item.name }}</span>
               <span class="font-bold">₲{{ item.price.toLocaleString() }}</span>
             </div>
-            <div v-if="lastOrder.giftBag" class="flex justify-between text-pink-600">
-              <span>Bolsa de regalo de lujo</span>
+            <div v-if="liveLastOrder.giftBag" class="flex justify-between text-pink-600">
+              <span>{{ t.giftBagSummary }}</span>
               <span class="font-bold">₲{{ giftBagPrice.toLocaleString() }}</span>
             </div>
           </div>
 
           <div class="border-t pt-2 flex justify-between font-bold text-sm text-slate-800">
             <span>Total:</span>
-            <span class="text-pink-600">₲{{ lastOrder.total.toLocaleString() }}</span>
+            <span class="text-pink-600">₲{{ liveLastOrder.total.toLocaleString() }}</span>
           </div>
         </div>
 
         <!-- BOTÓN ENVIAR COMPROBANTE POR WHATSAPP -->
         <a :href="whatsappOrderUrl" target="_blank" class="block w-full py-3 bg-emerald-500 text-white font-bold text-xs rounded-2xl shadow-md hover:bg-emerald-600 transition-all">
-          📲 Enviar comprobante por WhatsApp a la tienda
+          {{ t.sendWhatsappBtn }}
         </a>
 
         <button @click="resetOrder" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all">
-          Volver a la Lista
+          {{ t.backToListBtn }}
         </button>
       </section>
 
@@ -135,13 +194,13 @@
         <!-- SELECTOR DE LISTA -->
         <div class="mb-4 bg-white/80 p-3 rounded-2xl border border-white shadow-sm flex items-center justify-between">
           <div class="flex-1">
-            <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">Lista actual</label>
+            <label class="text-[10px] font-bold uppercase text-slate-400 block mb-1">{{ t.currentListLabel }}</label>
             <select v-if="lists.length > 0" v-model="selectedListId" @change="selectedIds = []; validationErrors = []" class="w-full bg-slate-50 font-bold text-slate-700 text-sm rounded-xl p-2 border-0 outline-none">
               <option v-for="list in lists" :key="list.id" :value="list.id">
                 {{ list.childName }} ({{ list.event }})
               </option>
             </select>
-            <p v-else class="text-xs text-slate-500 font-semibold py-1">Aún no hay listas creadas</p>
+            <p v-else class="text-xs text-slate-500 font-semibold py-1">{{ t.noListsYet }}</p>
           </div>
           <button v-if="isAdmin" @click="showNewListModal = true" class="ml-2 p-2.5 bg-pink-500 text-white rounded-xl shadow-md text-sm font-bold">
             + Nueva
@@ -154,8 +213,8 @@
             <span class="bg-white/70 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase">
               {{ activeList.event }}
             </span>
-            <h2 class="text-2xl font-bold mt-2 leading-tight">Lista de {{ activeList.childName }}</h2>
-            <p class="text-xs text-slate-600 mt-1">Selecciona los regalos que deseas obsequiar</p>
+            <h2 class="text-2xl font-bold mt-2 leading-tight">{{ t.listTitle(activeList.childName) }}</h2>
+            <p class="text-xs text-slate-600 mt-1">{{ t.listSubtitle }}</p>
           </div>
 
           <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
@@ -183,12 +242,12 @@
           <!-- PRODUCTOS DISPONIBLES -->
           <div class="space-y-3 mb-6">
             <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 px-1">
-              Regalos Disponibles ({{ availableProducts.length }})
+              {{ t.availableGifts }} ({{ availableProducts.length }})
             </h3>
 
             <div v-if="availableProducts.length === 0" class="text-center py-8 bg-white/60 rounded-3xl border border-dashed border-slate-300">
               <p class="text-3xl mb-1">🎉</p>
-              <p class="text-sm font-bold text-slate-500">¡Todos los regalos han sido reservados!</p>
+              <p class="text-sm font-bold text-slate-500">{{ t.allGiftsReserved }}</p>
             </div>
 
             <div v-for="product in availableProducts" :key="product.id" 
@@ -203,7 +262,7 @@
                   </span>
                   <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
                 </div>
-                <p class="text-xs text-slate-500 truncate">{{ product.desc || 'Sin detalle' }}</p>
+                <p class="text-xs text-slate-500 truncate">{{ product.desc || t.noDetails }}</p>
                 <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
               </div>
               
@@ -215,18 +274,29 @@
             </div>
           </div>
 
-          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE PARA ADMIN CON SKU PARA FACTURACIÓN) -->
+          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE PARA ADMIN) -->
           <div v-if="isAdmin && listOrders.length > 0" class="bg-purple-50/90 p-4 rounded-3xl border border-purple-200 mb-6 space-y-3">
             <h3 class="font-bold text-sm text-purple-800">📋 Pedidos Recibidos ({{ listOrders.length }})</h3>
-            <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3 rounded-2xl text-xs space-y-1.5 shadow-sm border border-purple-100">
-              <div class="flex justify-between font-bold text-slate-800">
-                <span>{{ ord.buyerName }} ({{ ord.phone }})</span>
+            <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3.5 rounded-2xl text-xs space-y-2 shadow-sm border"
+                 :class="ord.status === 'ready' ? 'border-emerald-300 bg-emerald-50/30' : 'border-purple-100'">
+              <div class="flex justify-between items-start font-bold text-slate-800">
+                <div>
+                  <span>{{ ord.buyerName }} ({{ ord.phone }})</span>
+                  <span v-if="ord.status === 'ready'" class="ml-1.5 inline-block px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px]">
+                    ✅ Listo para retirar
+                  </span>
+                  <span v-else class="ml-1.5 inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px]">
+                    ⏳ Pendiente
+                  </span>
+                </div>
                 <span class="text-pink-600">₲{{ ord.total.toLocaleString() }}</span>
               </div>
+
               <p class="text-[11px] text-slate-500">Pago: {{ ord.paymentMethod }} <span v-if="ord.giftBag">• 🛍️ Bolsa de Regalo (₲{{ giftBagPrice.toLocaleString() }})</span></p>
               <p v-if="ord.needInvoice" class="text-[11px] text-purple-700 bg-purple-50 px-2 py-1 rounded-lg font-semibold">
                 🧾 Factura: RUC {{ ord.ruc }} | {{ ord.invoiceName }}
               </p>
+              
               <div class="pt-1 border-t space-y-1">
                 <p class="text-[10px] font-bold text-slate-400 uppercase">Ítems para facturar:</p>
                 <div v-for="item in ord.items" :key="item.id" class="flex justify-between items-center text-[11px] text-slate-700">
@@ -238,14 +308,31 @@
                   <span class="font-semibold">₲{{ item.price.toLocaleString() }}</span>
                 </div>
               </div>
+
               <p v-if="ord.notes" class="text-[11px] text-slate-500 italic pt-1 border-t">Nota: "{{ ord.notes }}"</p>
+
+              <!-- BOTÓN DE ACCIÓN PARA MARCAR PEDIDO LISTO -->
+              <div class="pt-2 border-t flex gap-2">
+                <button v-if="ord.status !== 'ready'" 
+                        @click="markOrderReady(ord)" 
+                        :disabled="saving"
+                        class="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all">
+                  ✓ Confirmar pedido preparado (Avisar cliente)
+                </button>
+                <a v-else 
+                   :href="getClientReadyWhatsappUrl(ord)" 
+                   target="_blank"
+                   class="flex-1 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-center font-bold text-xs rounded-xl transition-all">
+                  📲 Avisar por WhatsApp al cliente
+                </a>
+              </div>
             </div>
           </div>
 
           <!-- SECCIÓN DE CHECKOUT / COMPRA -->
           <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4">
             <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
-              <span>Tu Selección ({{ selectedIds.length }})</span>
+              <span>{{ t.yourSelection }} ({{ selectedIds.length }})</span>
               <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
             </h3>
 
@@ -254,7 +341,7 @@
               <div class="flex items-center gap-2.5">
                 <span class="text-xl">🛍️</span>
                 <div>
-                  <p class="font-bold text-xs text-slate-800">Agregar Bolsa de Regalo Especial</p>
+                  <p class="font-bold text-xs text-slate-800">{{ t.addGiftBagTitle }}</p>
                   <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }}</p>
                 </div>
               </div>
@@ -263,9 +350,9 @@
 
             <!-- Método de Pago -->
             <div>
-              <label class="text-[11px] font-bold text-slate-500 block mb-1">Método de Pago</label>
+              <label class="text-[11px] font-bold text-slate-500 block mb-1">{{ t.paymentMethodLabel }}</label>
               <div class="grid grid-cols-3 gap-2">
-                <button v-for="method in paymentMethods" :key="method.id"
+                <button v-for="method in localizedPaymentMethods" :key="method.id"
                         type="button"
                         @click="paymentMethod = method.id"
                         class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
@@ -278,51 +365,51 @@
             <!-- DATOS DEL COMPRADOR -->
             <div class="space-y-2.5">
               <div>
-                <input v-model="buyer.name" @input="clearError('name')" type="text" placeholder="Tu Nombre / Apellido (ej. Tía María) *" 
+                <input v-model="buyer.name" @input="clearError('name')" type="text" :placeholder="t.buyerNamePlaceholder" 
                        class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
                        :class="missingFields.name ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
-                <p v-if="missingFields.name" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Escribe tu nombre para identificar el regalo</p>
+                <p v-if="missingFields.name" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errNameInline }}</p>
               </div>
 
               <div>
-                <input v-model="buyer.phone" @input="clearError('phone')" type="tel" placeholder="Teléfono de Contacto *" 
+                <input v-model="buyer.phone" @input="clearError('phone')" type="tel" :placeholder="t.buyerPhonePlaceholder" 
                        class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
                        :class="missingFields.phone ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
-                <p v-if="missingFields.phone" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Ingresa tu número de celular o WhatsApp</p>
+                <p v-if="missingFields.phone" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errPhoneInline }}</p>
               </div>
               
               <!-- SECCIÓN FACTURA LEGAL -->
               <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
                 <div class="flex items-center justify-between">
                   <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
-                    <span>🧾 Necesito Factura Legal</span>
+                    <span>🧾 {{ t.needInvoiceLabel }}</span>
                   </label>
                   <input type="checkbox" v-model="buyer.needInvoice" @change="clearInvoiceErrors" class="w-4 h-4 accent-purple-500 cursor-pointer">
                 </div>
 
                 <div v-if="buyer.needInvoice" class="space-y-2 pt-1.5 border-t border-slate-200">
                   <div>
-                    <input v-model="buyer.ruc" @input="clearError('ruc')" type="text" placeholder="RUC / C.I. *" 
+                    <input v-model="buyer.ruc" @input="clearError('ruc')" type="text" :placeholder="t.rucPlaceholder" 
                            class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
                            :class="missingFields.ruc ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
-                    <p v-if="missingFields.ruc" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Completa el RUC o Cédula de Identidad</p>
+                    <p v-if="missingFields.ruc" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errRucInline }}</p>
                   </div>
 
                   <div>
-                    <input v-model="buyer.invoiceName" @input="clearError('invoiceName')" type="text" placeholder="Razón Social / Denominación *" 
+                    <input v-model="buyer.invoiceName" @input="clearError('invoiceName')" type="text" :placeholder="t.companyNamePlaceholder" 
                            class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
                            :class="missingFields.invoiceName ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
-                    <p v-if="missingFields.invoiceName" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">⚠️ Completa el nombre o Razón Social para la factura</p>
+                    <p v-if="missingFields.invoiceName" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errCompanyInline }}</p>
                   </div>
                 </div>
               </div>
 
-              <input v-model="buyer.notes" type="text" placeholder="Mensaje / dedicatoria (opcional)" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
+              <input v-model="buyer.notes" type="text" :placeholder="t.notesPlaceholder" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
             </div>
 
             <!-- RECUADRO DE RESUMEN DE CAMPOS FALTANTES -->
             <div v-if="validationErrors.length > 0" class="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 space-y-1">
-              <p class="font-bold">Para confirmar tu regalo, por favor completa:</p>
+              <p class="font-bold">{{ t.validationBoxTitle }}</p>
               <ul class="list-disc list-inside text-[11px] font-semibold">
                 <li v-for="(err, idx) in validationErrors" :key="idx">{{ err }}</li>
               </ul>
@@ -331,13 +418,13 @@
             <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
             <div class="pt-2 border-t flex items-center justify-between">
               <div>
-                <span class="text-[10px] text-slate-400 font-bold uppercase block">Total a pagar</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase block">{{ t.totalToPayLabel }}</span>
                 <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
               </div>
               <button type="button" @click="confirmOrder" 
                       :disabled="saving"
                       class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 active:scale-95 transition-all">
-                {{ saving ? 'Procesando...' : 'Confirmar Regalo' }}
+                {{ saving ? t.processingBtn : t.confirmGiftBtn }}
               </button>
             </div>
           </div>
@@ -346,13 +433,52 @@
         <!-- SI NO HAY NINGUNA LISTA TODAVÍA -->
         <div v-else class="text-center py-12 bg-white/70 rounded-3xl p-6 space-y-3">
           <p class="text-4xl">🎈</p>
-          <h3 class="font-bold text-base text-slate-700">¡Bienvenido a Mi CasitApp!</h3>
-          <p class="text-xs text-slate-500">Para crear la primera lista de deseos, ingresa al <strong>Modo Tienda</strong> arriba a la derecha.</p>
+          <h3 class="font-bold text-base text-slate-700">{{ t.welcomeTitle }}</h3>
+          <p class="text-xs text-slate-500">{{ t.welcomeSub }}</p>
         </div>
 
       </template>
 
     </main>
+
+    <!-- MODAL CONSULTAR ESTADO DE MI PEDIDO (PARA CLIENTES) -->
+    <div v-if="showTrackModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl max-h-[85vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h3 class="font-bold text-base text-slate-800">📦 {{ t.trackModalTitle }}</h3>
+          <button @click="showTrackModal = false" class="text-slate-400 font-bold text-sm">✕</button>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">{{ t.trackPhoneLabel }}</label>
+          <input v-model="trackPhone" type="tel" placeholder="Ej. 0981123456" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border border-slate-200 mt-1 outline-none">
+        </div>
+
+        <div v-if="trackedOrders.length > 0" class="space-y-2.5">
+          <div v-for="ord in trackedOrders" :key="ord.id" class="p-3 rounded-2xl border text-xs space-y-1.5"
+               :class="ord.status === 'ready' ? 'bg-emerald-50/70 border-emerald-300' : 'bg-amber-50/60 border-amber-200'">
+            <div class="flex justify-between items-center font-bold">
+              <span class="text-slate-800">{{ t.forLabel }}: {{ ord.childName }}</span>
+              <span v-if="ord.status === 'ready'" class="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">
+                {{ t.trackReadyBadge }}
+              </span>
+              <span v-else class="text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-[10px]">
+                {{ t.trackPreparingBadge }}
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-600">{{ ord.items.map(i => i.name).join(', ') }}</p>
+            <p class="font-bold text-pink-600">Total: ₲{{ ord.total.toLocaleString() }}</p>
+          </div>
+        </div>
+        <p v-else class="text-xs text-slate-500 text-center py-3">
+          {{ t.trackEmptyHint }}
+        </p>
+
+        <button @click="showTrackModal = false" class="w-full py-2.5 bg-purple-500 text-white font-bold text-xs rounded-xl">
+          {{ t.closeBtn }}
+        </button>
+      </div>
+    </div>
 
     <!-- MODAL PIN ADMIN -->
     <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -410,13 +536,217 @@
 
     const { createApp, ref, computed, onMounted } = Vue;
 
+    // DICCIONARIO DE TRADUCCIONES (ESPAÑOL, ALEMÁN, INGLÉS)
+    const translations = {
+      es: {
+        languageLabel: 'Idioma',
+        myOrderBtn: 'Mi Pedido',
+        familyMode: 'Familia',
+        loadingLists: 'Cargando listas de deseos...',
+        currentListLabel: 'Lista actual',
+        noListsYet: 'Aún no hay listas creadas',
+        listTitle: (name) => `Lista de ${name}`,
+        listSubtitle: 'Selecciona los regalos que deseas obsequiar',
+        availableGifts: 'Regalos Disponibles',
+        allGiftsReserved: '¡Todos los regalos han sido reservados!',
+        noDetails: 'Sin detalle',
+        yourSelection: 'Tu Selección',
+        addGiftBagTitle: 'Agregar Bolsa de Regalo Especial',
+        paymentMethodLabel: 'Método de Pago',
+        payTransfer: 'Transferencia',
+        payPos: 'Tarjeta / POS',
+        payCash: 'Efectivo',
+        buyerNamePlaceholder: 'Tu Nombre / Apellido (ej. Tía María) *',
+        buyerPhonePlaceholder: 'Teléfono de Contacto *',
+        needInvoiceLabel: 'Necesito Factura Legal',
+        rucPlaceholder: 'RUC / C.I. *',
+        companyNamePlaceholder: 'Razón Social / Denominación *',
+        notesPlaceholder: 'Mensaje / dedicatoria (opcional)',
+        errNameInline: '⚠️ Escribe tu nombre para identificar el regalo',
+        errPhoneInline: '⚠️ Ingresa tu número de celular o WhatsApp',
+        errRucInline: '⚠️ Completa el RUC o Cédula de Identidad',
+        errCompanyInline: '⚠️ Completa el nombre o Razón Social para la factura',
+        errNameList: 'Tu Nombre o Apellido',
+        errPhoneList: 'Tu Teléfono de Contacto',
+        errRucList: 'El RUC o Cédula de Identidad',
+        errCompanyList: 'La Razón Social o Denominación',
+        validationBoxTitle: 'Para confirmar tu regalo, por favor completa:',
+        totalToPayLabel: 'Total a pagar',
+        processingBtn: 'Procesando...',
+        confirmGiftBtn: 'Confirmar Regalo',
+        statusReadyBadge: '✅ ¡LISTO PARA RETIRAR EN TIENDA!',
+        statusPreparingBadge: '⏳ En preparación en La Casita by AGM',
+        orderReadyHeading: '¡Tu pedido ya está preparado!',
+        orderConfirmedHeading: '¡Pedido Confirmado!',
+        orderReadySub: 'Puedes pasar a retirarlo cuando gustes. Te avisamos con sonido aquí mismo.',
+        orderConfirmedSub: 'Deja esta ventana abierta o revisa "📦 Mi Pedido" arriba: te avisaremos con sonido apenas esté listo.',
+        orderSummaryTitle: 'Resumen del pedido:',
+        clientLabel: 'Cliente',
+        paymentLabel: 'Pago',
+        invoiceSummaryTitle: 'Requiere Factura Legal',
+        rucLabel: 'RUC / C.I.',
+        companyNameLabel: 'Razón Social',
+        noteLabel: 'Nota',
+        giftBagSummary: 'Bolsa de regalo de lujo',
+        sendWhatsappBtn: '📲 Enviar comprobante por WhatsApp a la tienda',
+        backToListBtn: 'Volver a la Lista',
+        welcomeTitle: '¡Bienvenido a Mi CasitApp!',
+        welcomeSub: 'Aún no hay listas disponibles en este momento.',
+        trackModalTitle: 'Estado de mi Pedido',
+        trackPhoneLabel: 'Tu número de teléfono',
+        forLabel: 'Para',
+        trackReadyBadge: '✅ ¡Listo para retirar!',
+        trackPreparingBadge: '⏳ Preparando',
+        trackEmptyHint: 'Ingresa el teléfono con el que hiciste tu reserva para ver el estado en vivo.',
+        closeBtn: 'Cerrar',
+        toastReadyTitle: '¡Tu Regalo Está Listo!',
+        toastReadyBody: (buyer) => `Hola ${buyer}, ya puedes pasar a retirar por La Casita by AGM.`
+      },
+      de: {
+        languageLabel: 'Sprache',
+        myOrderBtn: 'Bestellung',
+        familyMode: 'Familie',
+        loadingLists: 'Wunschlisten werden geladen...',
+        currentListLabel: 'Aktuelle Wunschliste',
+        noListsYet: 'Noch keine Wunschlisten erstellt',
+        listTitle: (name) => `Wunschliste von ${name}`,
+        listSubtitle: 'Wähle die Geschenke aus, die du schenken möchtest',
+        availableGifts: 'Verfügbare Geschenke',
+        allGiftsReserved: 'Alle Geschenke wurden bereits reserviert!',
+        noDetails: 'Keine weiteren Details',
+        yourSelection: 'Deine Auswahl',
+        addGiftBagTitle: 'Spezielle Geschenktüte hinzufügen',
+        paymentMethodLabel: 'Zahlungsmethode',
+        payTransfer: 'Überweisung',
+        payPos: 'Karte / POS',
+        payCash: 'Barzahlung',
+        buyerNamePlaceholder: 'Dein Name / Nachname (z. B. Tante Maria) *',
+        buyerPhonePlaceholder: 'Kontakttelefonnummer *',
+        needInvoiceLabel: 'Ich benötige eine Rechnung (Factura)',
+        rucPlaceholder: 'RUC / Ausweisnummer *',
+        companyNamePlaceholder: 'Firmenname / Vollständiger Name *',
+        notesPlaceholder: 'Nachricht / Widmung (optional)',
+        errNameInline: '⚠️ Bitte gib deinen Namen ein',
+        errPhoneInline: '⚠️ Bitte gib deine Telefon- oder WhatsApp-Nummer ein',
+        errRucInline: '⚠️ Bitte gib die RUC- oder Ausweisnummer ein',
+        errCompanyInline: '⚠️ Bitte gib den Namen für die Rechnung ein',
+        errNameList: 'Dein Name oder Nachname',
+        errPhoneList: 'Deine Kontakttelefonnummer',
+        errRucList: 'RUC oder Ausweisnummer',
+        errCompanyList: 'Name oder Firma für die Rechnung',
+        validationBoxTitle: 'Um dein Geschenk zu bestätigen, fülle bitte aus:',
+        totalToPayLabel: 'Gesamtbetrag',
+        processingBtn: 'Wird bearbeitet...',
+        confirmGiftBtn: 'Geschenk bestätigen',
+        statusReadyBadge: '✅ ABHOLBEREIT IM GESCHÄFT!',
+        statusPreparingBadge: '⏳ Wird in La Casita by AGM vorbereitet',
+        orderReadyHeading: 'Deine Bestellung ist abholbereit!',
+        orderConfirmedHeading: 'Bestellung bestätigt!',
+        orderReadySub: 'Du kannst dein Geschenk jederzeit abholen.',
+        orderConfirmedSub: 'Lasse dieses Fenster geöffnet oder prüfe oben "📦 Bestellung": wir benachrichtigen dich mit Ton, sobald es fertig ist.',
+        orderSummaryTitle: 'Bestellübersicht:',
+        clientLabel: 'Kunde',
+        paymentLabel: 'Zahlung',
+        invoiceSummaryTitle: 'Rechnungsdaten',
+        rucLabel: 'RUC / Ausweis',
+        companyNameLabel: 'Name / Firma',
+        noteLabel: 'Notiz',
+        giftBagSummary: 'Exklusive Geschenktüte',
+        sendWhatsappBtn: '📲 Beleg per WhatsApp an das Geschäft senden',
+        backToListBtn: 'Zurück zur Liste',
+        welcomeTitle: 'Willkommen bei Mi CasitApp!',
+        welcomeSub: 'Momentan sind noch keine Wunschlisten verfügbar.',
+        trackModalTitle: 'Status meiner Bestellung',
+        trackPhoneLabel: 'Deine Telefonnummer',
+        forLabel: 'Für',
+        trackReadyBadge: '✅ Abholbereit!',
+        trackPreparingBadge: '⏳ In Vorbereitung',
+        trackEmptyHint: 'Gib deine Telefonnummer ein, um den aktuellen Status deiner Bestellung zu sehen.',
+        closeBtn: 'Schließen',
+        toastReadyTitle: 'Dein Geschenk ist fertig!',
+        toastReadyBody: (buyer) => `Hallo ${buyer}, dein Geschenk kann jetzt bei La Casita by AGM abgeholt werden.`
+      },
+      en: {
+        languageLabel: 'Language',
+        myOrderBtn: 'My Order',
+        familyMode: 'Family',
+        loadingLists: 'Loading wishlists...',
+        currentListLabel: 'Current wishlist',
+        noListsYet: 'No wishlists created yet',
+        listTitle: (name) => `${name}'s Wishlist`,
+        listSubtitle: 'Select the gifts you would like to give',
+        availableGifts: 'Available Gifts',
+        allGiftsReserved: 'All gifts have been reserved!',
+        noDetails: 'No extra details',
+        yourSelection: 'Your Selection',
+        addGiftBagTitle: 'Add Special Gift Bag',
+        paymentMethodLabel: 'Payment Method',
+        payTransfer: 'Bank Transfer',
+        payPos: 'Card / POS',
+        payCash: 'Cash',
+        buyerNamePlaceholder: 'Your Name / Last Name (e.g. Aunt Mary) *',
+        buyerPhonePlaceholder: 'Contact Phone Number *',
+        needInvoiceLabel: 'I need a Legal Invoice',
+        rucPlaceholder: 'RUC / ID Number *',
+        companyNamePlaceholder: 'Legal Name / Company Name *',
+        notesPlaceholder: 'Gift message / note (optional)',
+        errNameInline: '⚠️ Please enter your name to identify the gift',
+        errPhoneInline: '⚠️ Please enter your phone or WhatsApp number',
+        errRucInline: '⚠️ Please enter the RUC or ID number',
+        errCompanyInline: '⚠️ Please enter the legal name for the invoice',
+        errNameList: 'Your Name or Last Name',
+        errPhoneList: 'Your Contact Phone Number',
+        errRucList: 'RUC or ID Number',
+        errCompanyList: 'Legal Name or Company Name',
+        validationBoxTitle: 'To confirm your gift, please complete:',
+        totalToPayLabel: 'Total to pay',
+        processingBtn: 'Processing...',
+        confirmGiftBtn: 'Confirm Gift',
+        statusReadyBadge: '✅ READY FOR PICKUP AT STORE!',
+        statusPreparingBadge: '⏳ Being prepared at La Casita by AGM',
+        orderReadyHeading: 'Your order is ready!',
+        orderConfirmedHeading: 'Order Confirmed!',
+        orderReadySub: 'You can pick up your gift anytime at the store.',
+        orderConfirmedSub: 'Keep this screen open or check "📦 My Order" above: we will alert you with a sound as soon as it is ready.',
+        orderSummaryTitle: 'Order summary:',
+        clientLabel: 'Customer',
+        paymentLabel: 'Payment',
+        invoiceSummaryTitle: 'Legal Invoice Details',
+        rucLabel: 'RUC / ID',
+        companyNameLabel: 'Legal Name',
+        noteLabel: 'Note',
+        giftBagSummary: 'Luxury gift bag',
+        sendWhatsappBtn: '📲 Send receipt via WhatsApp to store',
+        backToListBtn: 'Back to Wishlist',
+        welcomeTitle: 'Welcome to Mi CasitApp!',
+        welcomeSub: 'There are no wishlists available right now.',
+        trackModalTitle: 'My Order Status',
+        trackPhoneLabel: 'Your phone number',
+        forLabel: 'For',
+        trackReadyBadge: '✅ Ready for pickup!',
+        trackPreparingBadge: '⏳ Preparing',
+        trackEmptyHint: 'Enter the phone number used for your reservation to check live status.',
+        closeBtn: 'Close',
+        toastReadyTitle: 'Your Gift Is Ready!',
+        toastReadyBody: (buyer) => `Hi ${buyer}, your gift is ready for pickup at La Casita by AGM.`
+      }
+    };
+
     createApp({
       setup() {
+        const lang = ref(localStorage.getItem('micasitapp_lang') || 'es');
+        const t = computed(() => translations[lang.value] || translations.es);
+
+        const setLang = (newLang) => {
+          lang.value = newLang;
+          localStorage.setItem('micasitapp_lang', newLang);
+        };
+
         const loading = ref(true);
         const saving = ref(false);
         const isAdmin = ref(false);
         const ADMIN_PIN = '21162430';
-        const STORE_WHATSAPP = '595981925071'; // Número de WhatsApp de La Casita by AGM
+        const STORE_WHATSAPP = '595981925071';
 
         const showPinModal = ref(false);
         const pinInput = ref('');
@@ -424,6 +754,8 @@
 
         const giftBagPrice = ref(10000);
         const showNewListModal = ref(false);
+        const showTrackModal = ref(false);
+        const trackPhone = ref(localStorage.getItem('micasitapp_buyer_phone') || '');
 
         const lists = ref([]);
         const orders = ref([]);
@@ -432,10 +764,14 @@
         const includeGiftBag = ref(false);
         const paymentMethod = ref('transfer');
         const orderCompleted = ref(false);
-        const lastOrder = ref(null);
+        const lastOrderId = ref(localStorage.getItem('micasitapp_last_order_id') || '');
+        const lastOrderSnapshot = ref(null);
+
         const newOrderToast = ref(null);
+        const readyOrderToast = ref(null);
         let initialOrdersLoaded = false;
         let knownOrderIds = new Set();
+        let knownOrderStatuses = new Map();
 
         const validationErrors = ref([]);
         const missingFields = ref({
@@ -445,11 +781,11 @@
           invoiceName: false
         });
 
-        const paymentMethods = [
-          { id: 'transfer', name: 'Transferencia' },
-          { id: 'pos', name: 'Tarjeta / POS' },
-          { id: 'cash', name: 'Efectivo' }
-        ];
+        const localizedPaymentMethods = computed(() => [
+          { id: 'transfer', name: t.value.payTransfer },
+          { id: 'pos', name: t.value.payPos },
+          { id: 'cash', name: t.value.payCash }
+        ]);
 
         const newList = ref({ childName: '', event: '' });
         const newProduct = ref({ name: '', sku: '', price: null, emoji: '', desc: '' });
@@ -468,7 +804,7 @@
               osc.type = 'sine';
               osc.frequency.setValueAtTime(freq, startTime);
               gain.gain.setValueAtTime(0.001, startTime);
-              gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.03);
+              gain.gain.exponentialRampToValueAtTime(0.28, startTime + 0.03);
               gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
               osc.connect(gain);
               gain.connect(ctx.destination);
@@ -476,10 +812,10 @@
               osc.stop(startTime + duration);
             };
 
-            playTone(587.33, now, 0.25);        // Re5
-            playTone(880.00, now + 0.14, 0.45); // La5
+            playTone(587.33, now, 0.25);
+            playTone(880.00, now + 0.14, 0.45);
           } catch (e) {
-            console.warn("Audio no permitido hasta interacción:", e);
+            console.warn("Audio bloqueado hasta interacción del usuario:", e);
           }
         };
 
@@ -497,6 +833,24 @@
           return orders.value.filter(o => o.listId === activeList.value.id);
         });
 
+        const liveLastOrder = computed(() => {
+          if (lastOrderId.value) {
+            const found = orders.value.find(o => o.id === lastOrderId.value);
+            if (found) return found;
+          }
+          return lastOrderSnapshot.value;
+        });
+
+        const trackedOrders = computed(() => {
+          const cleanPhone = trackPhone.value.replace(/\D/g, '');
+          if (cleanPhone.length < 5) return [];
+          return orders.value.filter(o => (o.phone || '').replace(/\D/g, '').includes(cleanPhone));
+        });
+
+        const myReadyOrdersCount = computed(() => {
+          return trackedOrders.value.filter(o => o.status === 'ready').length;
+        });
+
         const subtotal = computed(() => {
           if (!activeList.value || !activeList.value.products) return 0;
           return activeList.value.products
@@ -509,8 +863,8 @@
         });
 
         const whatsappOrderUrl = computed(() => {
-          if (!lastOrder.value) return '#';
-          const o = lastOrder.value;
+          if (!liveLastOrder.value) return '#';
+          const o = liveLastOrder.value;
           const itemsText = o.items.map(i => `• ${i.sku ? '[' + i.sku + '] ' : ''}${i.name} (₲${i.price.toLocaleString()})`).join('\n');
           const bagText = o.giftBag ? `\n• Bolsa de regalo especial (₲${giftBagPrice.value.toLocaleString()})` : '';
           const invoiceText = o.needInvoice ? `\n\n🧾 *Factura Legal:*\nRUC/CI: ${o.ruc}\nRazón Social: ${o.invoiceName}` : '';
@@ -525,6 +879,17 @@
 
           return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(msg)}`;
         });
+
+        const getClientReadyWhatsappUrl = (ord) => {
+          let cleanPhone = (ord.phone || '').replace(/\D/g, '');
+          if (cleanPhone.startsWith('0')) {
+            cleanPhone = '595' + cleanPhone.substring(1);
+          } else if (!cleanPhone.startsWith('595')) {
+            cleanPhone = '595' + cleanPhone;
+          }
+          const msg = `🎁 ¡Hola *${ord.buyerName}*! Te avisamos desde *La Casita by AGM* que tu regalo para *${ord.childName}* ya está preparado y listo para retirar. ¡Te esperamos! ✨`;
+          return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+        };
 
         const clearError = (field) => {
           missingFields.value[field] = false;
@@ -556,7 +921,6 @@
             isAdmin.value = true;
             showPinModal.value = false;
             pinError.value = false;
-            // Desbloquear contexto de audio al ingresar como admin
             playNotificationSound();
           } else {
             pinError.value = true;
@@ -572,7 +936,6 @@
           }
         };
 
-        // CREAR NUEVA LISTA EN FIRESTORE
         const createList = async () => {
           const name = newList.value.childName.trim();
           if (!name) {
@@ -598,7 +961,6 @@
           }
         };
 
-        // AGREGAR PRODUCTO EN FIRESTORE (CON SKU)
         const addProduct = async () => {
           if (!newProduct.value.name || !newProduct.value.price || !activeList.value) {
             alert("Completa el nombre y el precio del regalo.");
@@ -629,7 +991,20 @@
           }
         };
 
-        // CONFIRMAR COMPRA EN TIEMPO REAL
+        const markOrderReady = async (ord) => {
+          saving.value = true;
+          try {
+            await updateDoc(doc(db, "orders", ord.id), {
+              status: 'ready',
+              readyAt: Date.now()
+            });
+          } catch (e) {
+            alert("Error al actualizar el estado del pedido: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
+
         const confirmOrder = async () => {
           if (!activeList.value) return;
 
@@ -641,20 +1016,20 @@
 
           if (!buyerName) {
             missingFields.value.name = true;
-            errors.push("Tu Nombre o Apellido");
+            errors.push(t.value.errNameList);
           }
           if (!buyerPhone) {
             missingFields.value.phone = true;
-            errors.push("Tu Teléfono de Contacto");
+            errors.push(t.value.errPhoneList);
           }
           if (buyer.value.needInvoice) {
             if (!buyer.value.ruc.trim()) {
               missingFields.value.ruc = true;
-              errors.push("El RUC o Cédula de Identidad");
+              errors.push(t.value.errRucList);
             }
             if (!buyer.value.invoiceName.trim()) {
               missingFields.value.invoiceName = true;
-              errors.push("La Razón Social o Denominación");
+              errors.push(t.value.errCompanyList);
             }
           }
 
@@ -675,12 +1050,19 @@
               notes: buyer.value.notes.trim(),
               items: itemsBought,
               giftBag: includeGiftBag.value,
-              paymentMethod: paymentMethods.find(m => m.id === paymentMethod.value).name,
+              paymentMethod: localizedPaymentMethods.value.find(m => m.id === paymentMethod.value).name,
               total: total.value,
+              status: 'preparing',
               createdAt: Date.now()
             };
 
-            await addDoc(collection(db, "orders"), orderData);
+            const orderDocRef = await addDoc(collection(db, "orders"), orderData);
+
+            lastOrderId.value = orderDocRef.id;
+            lastOrderSnapshot.value = { id: orderDocRef.id, ...orderData };
+            trackPhone.value = buyerPhone;
+            localStorage.setItem('micasitapp_last_order_id', orderDocRef.id);
+            localStorage.setItem('micasitapp_buyer_phone', buyerPhone);
 
             const updatedProducts = activeList.value.products.map(p => {
               if (selectedIds.value.includes(p.id)) {
@@ -693,7 +1075,6 @@
               products: updatedProducts
             });
 
-            lastOrder.value = orderData;
             orderCompleted.value = true;
           } catch (e) {
             console.error(e);
@@ -712,7 +1093,6 @@
           orderCompleted.value = false;
         };
 
-        // ESCUCHAR CAMBIOS EN TIEMPO REAL Y DISPARAR NOTIFICACIÓN + SONIDO
         onMounted(() => {
           const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
           onSnapshot(qLists, (snapshot) => {
@@ -731,23 +1111,46 @@
             const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
             if (!initialOrdersLoaded) {
-              fetchedOrders.forEach(o => knownOrderIds.add(o.id));
+              fetchedOrders.forEach(o => {
+                knownOrderIds.add(o.id);
+                knownOrderStatuses.set(o.id, o.status || 'preparing');
+              });
               initialOrdersLoaded = true;
             } else {
-              // Detectar si llegó un pedido nuevo
-              const newest = fetchedOrders.find(o => !knownOrderIds.has(o.id));
-              if (newest) {
-                knownOrderIds.add(newest.id);
-                if (isAdmin.value) {
-                  playNotificationSound();
-                  newOrderToast.value = newest;
-                  setTimeout(() => {
-                    if (newOrderToast.value && newOrderToast.value.id === newest.id) {
-                      newOrderToast.value = null;
+              fetchedOrders.forEach(o => {
+                if (!knownOrderIds.has(o.id)) {
+                  knownOrderIds.add(o.id);
+                  knownOrderStatuses.set(o.id, o.status || 'preparing');
+                  if (isAdmin.value) {
+                    playNotificationSound();
+                    newOrderToast.value = o;
+                    setTimeout(() => {
+                      if (newOrderToast.value && newOrderToast.value.id === o.id) {
+                        newOrderToast.value = null;
+                      }
+                    }, 12000);
+                  }
+                } else {
+                  const prevStatus = knownOrderStatuses.get(o.id);
+                  const currentStatus = o.status || 'preparing';
+                  if (prevStatus !== 'ready' && currentStatus === 'ready') {
+                    const cleanMyPhone = trackPhone.value.replace(/\D/g, '');
+                    const cleanOrderPhone = (o.phone || '').replace(/\D/g, '');
+                    const isMyOrder = o.id === lastOrderId.value || (cleanMyPhone.length >= 5 && cleanOrderPhone.includes(cleanMyPhone));
+
+                    if (!isAdmin.value && isMyOrder) {
+                      playNotificationSound();
+                      readyOrderToast.value = o;
+                      setTimeout(() => {
+                        if (readyOrderToast.value && readyOrderToast.value.id === o.id) {
+                          readyOrderToast.value = null;
+                        }
+                      }, 15000);
                     }
-                  }, 12000);
+                  }
+                  knownOrderStatuses.set(o.id, currentStatus);
                 }
-              }
+              });
             }
 
             orders.value = fetchedOrders;
@@ -755,12 +1158,15 @@
         });
 
         return {
+          lang, t, setLang,
           loading, saving, isAdmin, showPinModal, pinInput, pinError,
           handleAdminToggle, verifyPin, lists, selectedListId, activeList,
           availableProducts, listOrders, selectedIds, includeGiftBag,
-          giftBagPrice, paymentMethod, paymentMethods, newProduct, newList,
-          showNewListModal, buyer, subtotal, total, orderCompleted, lastOrder,
-          newOrderToast, playNotificationSound, whatsappOrderUrl,
+          giftBagPrice, paymentMethod, localizedPaymentMethods, newProduct, newList,
+          showNewListModal, showTrackModal, trackPhone, trackedOrders, myReadyOrdersCount,
+          buyer, subtotal, total, orderCompleted, liveLastOrder,
+          newOrderToast, readyOrderToast, playNotificationSound,
+          whatsappOrderUrl, getClientReadyWhatsappUrl, markOrderReady,
           validationErrors, missingFields, clearError, clearInvoiceErrors,
           toggleSelect, addProduct, createList, confirmOrder, resetOrder
         };
