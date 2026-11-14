@@ -12,6 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
   <!-- Vue 3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <!-- Lector de código de barras por cámara (html5-qrcode) -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     body { font-family: 'Quicksand', sans-serif; }
     h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; }
@@ -217,7 +219,7 @@
             <p class="text-xs text-slate-600 mt-1">{{ t.listSubtitle }}</p>
           </div>
 
-          <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
+          <!-- FORMULARIO SOLO VISIBLE PARA ADMIN (CON LECTOR DE CÓDIGO DE BARRAS Y MEMORIA DE CATÁLOGO) -->
           <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
             <div class="flex items-center justify-between">
               <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
@@ -225,16 +227,36 @@
                 🔊 Probar sonido
               </button>
             </div>
+
+            <!-- FILA DE ESCANEO DE CÓDIGO DE BARRAS / SKU -->
+            <div class="bg-purple-50/80 p-2.5 rounded-2xl border border-purple-200 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-[10px] font-bold text-purple-700 uppercase">🔫 Lector Código de Barras / SKU</label>
+                <span v-if="scanFeedback" class="text-[10px] font-bold text-emerald-600">{{ scanFeedback }}</span>
+              </div>
+              <div class="flex gap-1.5">
+                <input ref="skuInputRef"
+                       v-model="newProduct.sku" 
+                       @keydown.enter.prevent="handleBarcodeScanned"
+                       type="text" 
+                       placeholder="Dispara el lector aquí o escribe código..." 
+                       class="flex-1 p-2 bg-white rounded-xl border border-purple-200 text-xs font-bold uppercase text-slate-800 outline-none focus:ring-2 focus:ring-purple-400">
+                <button @click="openCameraScanner" type="button" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold shadow-sm flex items-center gap-1 flex-shrink-0">
+                  <span>📷</span>
+                  <span>Cámara</span>
+                </button>
+              </div>
+              <p class="text-[10px] text-slate-500">Si ya existe, puedes modificar el precio o datos antes de añadir y se actualizará en el catálogo.</p>
+            </div>
             
             <div class="grid grid-cols-4 gap-2">
               <input v-model="newProduct.emoji" type="text" placeholder="🎁" class="p-2 bg-slate-50 rounded-xl text-center border-0 text-lg">
-              <input v-model="newProduct.sku" type="text" placeholder="SKU / Cód." class="p-2 bg-slate-50 rounded-xl border-0 text-xs font-semibold uppercase">
-              <input v-model="newProduct.name" type="text" placeholder="Nombre del regalo" class="col-span-2 p-2 bg-slate-50 rounded-xl border-0 text-sm">
+              <input ref="nameInputRef" v-model="newProduct.name" type="text" placeholder="Nombre del regalo" class="col-span-3 p-2 bg-slate-50 rounded-xl border-0 text-sm">
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <input v-model.number="newProduct.price" type="number" placeholder="Precio (₲)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
-              <input v-model="newProduct.desc" type="text" placeholder="Detalle (opcional)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
+              <input ref="priceInputRef" v-model.number="newProduct.price" @keyup.enter="addProduct" type="number" placeholder="Precio (₲)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm font-bold text-pink-600">
+              <input v-model="newProduct.desc" @keyup.enter="addProduct" type="text" placeholder="Detalle (opcional)" class="p-2 bg-slate-50 rounded-xl border-0 text-sm">
             </div>
 
             <!-- CARGA DE IMAGEN DEL PRODUCTO -->
@@ -301,11 +323,20 @@
                 <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
               </div>
               
-              <button @click="toggleSelect(product.id)" 
-                      class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold"
-                      :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
-                ✓
-              </button>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <!-- BOTÓN EDITAR PRODUCTO (SOLO ADMIN) -->
+                <button v-if="isAdmin" @click="openEditModal(product)" type="button" title="Editar precio o datos"
+                        class="w-8 h-8 rounded-full bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 flex items-center justify-center text-xs transition-all">
+                  ✏️
+                </button>
+
+                <!-- BOTÓN SELECCIONAR REGALO -->
+                <button @click="toggleSelect(product.id)" 
+                        class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold"
+                        :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
+                  ✓
+                </button>
+              </div>
             </div>
           </div>
 
@@ -476,6 +507,87 @@
 
     </main>
 
+    <!-- MODAL EDITAR PRODUCTO EXISTENTE (MODO TIENDA) -->
+    <div v-if="editingProduct" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-3 shadow-2xl">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h3 class="font-bold text-base text-purple-700">✏️ Editar Producto</h3>
+          <button @click="editingProduct = null" class="text-slate-400 font-bold text-sm">✕</button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Emoji</label>
+            <input v-model="editingProduct.emoji" type="text" class="w-full p-2 bg-slate-50 rounded-xl text-center text-base mt-0.5">
+          </div>
+          <div class="col-span-2">
+            <label class="text-[10px] font-bold text-slate-400 uppercase">SKU / Código</label>
+            <input v-model="editingProduct.sku" type="text" class="w-full p-2 bg-slate-50 rounded-xl text-xs font-bold uppercase mt-0.5">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Nombre del regalo</label>
+          <input v-model="editingProduct.name" type="text" class="w-full p-2 bg-slate-50 rounded-xl text-sm mt-0.5">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-pink-600 uppercase">Nuevo Precio (₲)</label>
+            <input v-model.number="editingProduct.price" type="number" class="w-full p-2 bg-pink-50 border border-pink-200 rounded-xl text-sm font-bold text-pink-600 mt-0.5 outline-none focus:ring-2 focus:ring-pink-300">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Detalle</label>
+            <input v-model="editingProduct.desc" type="text" class="w-full p-2 bg-slate-50 rounded-xl text-sm mt-0.5">
+          </div>
+        </div>
+
+        <!-- Imagen en modal de edición -->
+        <div class="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <img v-if="editingProduct.image" :src="editingProduct.image" class="w-10 h-10 rounded-xl object-cover flex-shrink-0">
+            <span v-else class="text-lg">📷</span>
+            <span class="text-[11px] font-semibold text-slate-600 truncate">
+              {{ editingProduct.image ? 'Foto cargada' : 'Sin foto' }}
+            </span>
+          </div>
+          <div class="flex gap-1">
+            <label class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-purple-600 cursor-pointer">
+              {{ editingProduct.image ? 'Cambiar' : 'Subir' }}
+              <input type="file" accept="image/*" @change="handleEditImageUpload" class="hidden">
+            </label>
+            <button v-if="editingProduct.image" @click="editingProduct.image = ''" type="button" class="px-2 py-1 bg-rose-100 text-rose-600 rounded-lg text-[10px] font-bold">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button @click="editingProduct = null" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">
+            Cancelar
+          </button>
+          <button @click="saveEditedProduct" :disabled="saving || processingImage" class="flex-1 py-2.5 bg-purple-600 text-white font-bold text-xs rounded-xl shadow-sm">
+            {{ saving ? 'Guardando...' : 'Guardar Cambios' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL ESCÁNER DE CÓDIGO DE BARRAS CON CÁMARA -->
+    <div v-if="showCameraModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-4 w-full max-w-xs space-y-3 shadow-2xl text-center">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h3 class="font-bold text-sm text-slate-800">📷 Escanear Código de Barras</h3>
+          <button @click="closeCameraScanner" class="text-slate-400 font-bold text-sm px-1">✕</button>
+        </div>
+        <div id="barcode-reader" class="w-full rounded-2xl overflow-hidden bg-black min-h-[220px]"></div>
+        <p class="text-[11px] text-slate-500">Apunta la cámara al código de barras del producto.</p>
+        <button @click="closeCameraScanner" class="w-full py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">
+          Cancelar
+        </button>
+      </div>
+    </div>
+
     <!-- MODAL VISTA AMPLIADA DE IMAGEN DEL PRODUCTO -->
     <div v-if="previewProduct" @click="previewProduct = null" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div @click.stop class="bg-white rounded-3xl p-4 w-full max-w-xs space-y-3 shadow-2xl text-center">
@@ -579,7 +691,7 @@
   <!-- FIREBASE SDK & APP LOGIC -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDaqmB4gXyefAAJTtYl6Hm2xgami0rul2w",
@@ -593,7 +705,7 @@
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
 
-    const { createApp, ref, computed, onMounted } = Vue;
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
     // DICCIONARIO DE TRADUCCIONES (ESPAÑOL, ALEMÁN, INGLÉS)
     const translations = {
@@ -815,8 +927,17 @@
         const giftBagPrice = ref(10000);
         const showNewListModal = ref(false);
         const showTrackModal = ref(false);
+        const showCameraModal = ref(false);
         const previewProduct = ref(null);
+        const editingProduct = ref(null);
+        const scanFeedback = ref('');
+
         const fileInputRef = ref(null);
+        const skuInputRef = ref(null);
+        const nameInputRef = ref(null);
+        const priceInputRef = ref(null);
+        let html5QrScanner = null;
+
         const trackPhone = ref(localStorage.getItem('micasitapp_buyer_phone') || '');
 
         const lists = ref([]);
@@ -853,7 +974,172 @@
         const newProduct = ref({ name: '', sku: '', price: null, emoji: '', desc: '', image: '' });
         const buyer = ref({ name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' });
 
-        // COMPRESIÓN AUTOMÁTICA DE IMAGEN (450px máx, calidad 0.78)
+        // BUSCAR CÓDIGO ESCANEADO Y FOCALIZAR PRECIO PARA EDICIÓN RÁPIDA SI YA EXISTE
+        const handleBarcodeScanned = async () => {
+          const code = newProduct.value.sku.trim().toUpperCase();
+          if (!code) return;
+          newProduct.value.sku = code;
+          scanFeedback.value = 'Buscando código...';
+
+          try {
+            // 1. Buscar en colección 'catalog' de Firestore
+            const catalogRef = doc(db, "catalog", code);
+            const catalogSnap = await getDoc(catalogRef);
+
+            if (catalogSnap.exists()) {
+              const data = catalogSnap.data();
+              newProduct.value.name = data.name || '';
+              newProduct.value.price = data.price || null;
+              newProduct.value.emoji = data.emoji || '🎁';
+              newProduct.value.desc = data.desc || '';
+              newProduct.value.image = data.image || '';
+              scanFeedback.value = '✅ Cargado (puedes editar precio)';
+              setTimeout(() => { scanFeedback.value = ''; }, 4000);
+              nextTick(() => {
+                if (priceInputRef.value) {
+                  priceInputRef.value.focus();
+                  priceInputRef.value.select();
+                }
+              });
+              return;
+            }
+
+            // 2. Buscar en productos cargados anteriormente en otras listas
+            for (const list of lists.value) {
+              if (list.products) {
+                const found = list.products.find(p => (p.sku || '').toUpperCase() === code);
+                if (found) {
+                  newProduct.value.name = found.name || '';
+                  newProduct.value.price = found.price || null;
+                  newProduct.value.emoji = found.emoji || '🎁';
+                  newProduct.value.desc = found.desc || '';
+                  newProduct.value.image = found.image || '';
+                  scanFeedback.value = '✅ Cargado (puedes editar precio)';
+                  setTimeout(() => { scanFeedback.value = ''; }, 4000);
+                  nextTick(() => {
+                    if (priceInputRef.value) {
+                      priceInputRef.value.focus();
+                      priceInputRef.value.select();
+                    }
+                  });
+                  return;
+                }
+              }
+            }
+
+            // 3. Si es un código nuevo, mover foco al nombre
+            scanFeedback.value = '🆕 Código nuevo: completa nombre y precio';
+            setTimeout(() => { scanFeedback.value = ''; }, 4000);
+            nextTick(() => {
+              if (nameInputRef.value) nameInputRef.value.focus();
+            });
+          } catch (e) {
+            console.error(e);
+            scanFeedback.value = '';
+          }
+        };
+
+        // ABRIR MODAL PARA EDITAR PRODUCTO YA AGREGADO A LA LISTA
+        const openEditModal = (product) => {
+          editingProduct.value = { ...product };
+        };
+
+        const handleEditImageUpload = async (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (!file || !editingProduct.value) return;
+          processingImage.value = true;
+          try {
+            editingProduct.value.image = await compressImageFile(file);
+          } catch (err) {
+            alert("No se pudo procesar la imagen seleccionada.");
+          } finally {
+            processingImage.value = false;
+          }
+        };
+
+        const saveEditedProduct = async () => {
+          if (!editingProduct.value || !activeList.value) return;
+          if (!editingProduct.value.name.trim() || !editingProduct.value.price) {
+            alert("El nombre y el precio son obligatorios.");
+            return;
+          }
+
+          saving.value = true;
+          try {
+            const cleanSku = (editingProduct.value.sku || '').trim().toUpperCase();
+            const updatedItem = {
+              ...editingProduct.value,
+              sku: cleanSku,
+              name: editingProduct.value.name.trim(),
+              price: Number(editingProduct.value.price),
+              emoji: editingProduct.value.emoji || '🎁',
+              desc: (editingProduct.value.desc || '').trim()
+            };
+
+            const updatedProducts = activeList.value.products.map(p =>
+              p.id === updatedItem.id ? updatedItem : p
+            );
+
+            await updateDoc(doc(db, "wishlists", activeList.value.id), {
+              products: updatedProducts
+            });
+
+            // Actualizar también en el catálogo maestro si tiene SKU
+            if (cleanSku) {
+              await setDoc(doc(db, "catalog", cleanSku), {
+                sku: cleanSku,
+                name: updatedItem.name,
+                price: updatedItem.price,
+                emoji: updatedItem.emoji,
+                desc: updatedItem.desc,
+                image: updatedItem.image || '',
+                updatedAt: Date.now()
+              });
+            }
+
+            editingProduct.value = null;
+          } catch (e) {
+            alert("Error al guardar los cambios: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
+
+        // ABRIR ESCÁNER DE CÁMARA PARA CELULAR
+        const openCameraScanner = async () => {
+          showCameraModal.value = true;
+          await nextTick();
+          try {
+            html5QrScanner = new Html5Qrcode("barcode-reader");
+            await html5QrScanner.start(
+              { facingMode: "environment" },
+              { fps: 10, qrbox: { width: 230, height: 130 } },
+              async (decodedText) => {
+                playNotificationSound();
+                newProduct.value.sku = decodedText.trim().toUpperCase();
+                await closeCameraScanner();
+                await handleBarcodeScanned();
+              },
+              () => {}
+            );
+          } catch (err) {
+            alert("No se pudo abrir la cámara. Verifica los permisos del navegador.");
+            showCameraModal.value = false;
+          }
+        };
+
+        const closeCameraScanner = async () => {
+          if (html5QrScanner) {
+            try {
+              await html5QrScanner.stop();
+              html5QrScanner.clear();
+            } catch (e) {}
+            html5QrScanner = null;
+          }
+          showCameraModal.value = false;
+        };
+
+        // COMPRESIÓN AUTOMÁTICA DE IMAGEN
         const compressImageFile = (file) => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -909,7 +1195,6 @@
           }
         };
 
-        // SONIDO DE NOTIFICACIÓN (Campanita suave con Web Audio API)
         const playNotificationSound = () => {
           try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -1040,6 +1325,9 @@
             showPinModal.value = false;
             pinError.value = false;
             playNotificationSound();
+            nextTick(() => {
+              if (skuInputRef.value) skuInputRef.value.focus();
+            });
           } else {
             pinError.value = true;
           }
@@ -1086,24 +1374,44 @@
           }
           saving.value = true;
           try {
+            const cleanSku = newProduct.value.sku.trim().toUpperCase();
+            const productItem = {
+              id: Date.now(),
+              sku: cleanSku,
+              name: newProduct.value.name.trim(),
+              price: Number(newProduct.value.price),
+              emoji: newProduct.value.emoji || '🎁',
+              desc: newProduct.value.desc || '',
+              image: newProduct.value.image || '',
+              purchased: false
+            };
+
             const updatedProducts = [
               ...(activeList.value.products || []),
-              {
-                id: Date.now(),
-                sku: newProduct.value.sku.trim().toUpperCase(),
-                name: newProduct.value.name.trim(),
-                price: Number(newProduct.value.price),
-                emoji: newProduct.value.emoji || '🎁',
-                desc: newProduct.value.desc || '',
-                image: newProduct.value.image || '',
-                purchased: false
-              }
+              productItem
             ];
+
             await updateDoc(doc(db, "wishlists", activeList.value.id), {
               products: updatedProducts
             });
+
+            if (cleanSku) {
+              await setDoc(doc(db, "catalog", cleanSku), {
+                sku: cleanSku,
+                name: productItem.name,
+                price: productItem.price,
+                emoji: productItem.emoji,
+                desc: productItem.desc,
+                image: productItem.image,
+                updatedAt: Date.now()
+              });
+            }
+
             newProduct.value = { name: '', sku: '', price: null, emoji: '', desc: '', image: '' };
             if (fileInputRef.value) fileInputRef.value.value = '';
+            nextTick(() => {
+              if (skuInputRef.value) skuInputRef.value.focus();
+            });
           } catch (e) {
             alert("Error al agregar regalo: " + e.message);
           } finally {
@@ -1158,7 +1466,6 @@
 
           saving.value = true;
           try {
-            // Excluir la imagen base64 pesada del registro de orden para mantener liviana la colección orders
             const itemsBought = activeList.value.products
               .filter(p => selectedIds.value.includes(p.id))
               .map(({ image, ...rest }) => rest);
@@ -1287,7 +1594,10 @@
           handleAdminToggle, verifyPin, lists, selectedListId, activeList,
           availableProducts, listOrders, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, localizedPaymentMethods, newProduct, newList,
-          fileInputRef, handleImageUpload, clearProductImage, previewProduct,
+          fileInputRef, skuInputRef, nameInputRef, priceInputRef, scanFeedback,
+          handleBarcodeScanned, showCameraModal, openCameraScanner, closeCameraScanner,
+          handleImageUpload, clearProductImage, previewProduct,
+          editingProduct, openEditModal, handleEditImageUpload, saveEditedProduct,
           showNewListModal, showTrackModal, trackPhone, trackedOrders, myReadyOrdersCount,
           buyer, subtotal, total, orderCompleted, liveLastOrder,
           newOrderToast, readyOrderToast, playNotificationSound,
