@@ -18,11 +18,40 @@
     .bg-gradient-pastel {
       background: linear-gradient(135deg, #FDE2E4 0%, #E2E2FF 50%, #E0F4FF 100%);
     }
+    @keyframes slideDown {
+      from { transform: translate(-50%, -100%); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    .toast-enter {
+      animation: slideDown 0.35s ease-out forwards;
+    }
   </style>
 </head>
 <body class="bg-gradient-pastel min-h-screen text-slate-700 pb-12">
-  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60">
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60 relative">
     
+    <!-- NOTIFICACIÓN FLOTANTE DE PEDIDO NUEVO (MODO TIENDA) -->
+    <div v-if="newOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
+      <div class="bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-3xl p-4 shadow-2xl space-y-2">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-base font-bold animate-bounce">🔔</span>
+            <div>
+              <p class="text-xs font-bold text-emerald-700 uppercase tracking-wide">¡Nuevo Regalo Reservado!</p>
+              <p class="text-[11px] text-slate-500">Lista de <strong>{{ newOrderToast.childName }}</strong></p>
+            </div>
+          </div>
+          <button @click="newOrderToast = null" class="text-slate-400 hover:text-slate-600 font-bold text-sm px-1.5">✕</button>
+        </div>
+        <div class="bg-emerald-50/70 rounded-2xl p-2.5 text-xs space-y-1 border border-emerald-100">
+          <p class="font-bold text-slate-800">{{ newOrderToast.buyerName }} • <span class="text-pink-600">₲{{ newOrderToast.total.toLocaleString() }}</span></p>
+          <p class="text-[11px] text-slate-600">
+            {{ newOrderToast.items.map(i => (i.sku ? `[${i.sku}] ` : '') + i.name).join(', ') }}
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- ENCABEZADO -->
     <header class="p-5 pb-3 flex justify-between items-center border-b border-pink-100 bg-white/70 backdrop-blur-md sticky top-0 z-30">
       <div class="flex items-center gap-2">
@@ -90,7 +119,12 @@
           </div>
         </div>
 
-        <button @click="resetOrder" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl shadow-md hover:opacity-95 transition-all">
+        <!-- BOTÓN ENVIAR COMPROBANTE POR WHATSAPP -->
+        <a :href="whatsappOrderUrl" target="_blank" class="block w-full py-3 bg-emerald-500 text-white font-bold text-xs rounded-2xl shadow-md hover:bg-emerald-600 transition-all">
+          📲 Enviar comprobante por WhatsApp a la tienda
+        </a>
+
+        <button @click="resetOrder" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 transition-all">
           Volver a la Lista
         </button>
       </section>
@@ -126,9 +160,15 @@
 
           <!-- FORMULARIO SOLO VISIBLE PARA ADMIN -->
           <div v-if="isAdmin" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-6 space-y-3">
-            <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
-            <div class="grid grid-cols-3 gap-2">
-              <input v-model="newProduct.emoji" type="text" placeholder="Emoji 🎁" class="p-2 bg-slate-50 rounded-xl text-center border-0 text-lg">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-sm text-pink-600">➕ Agregar Regalo a la Lista</h3>
+              <button @click="playNotificationSound" type="button" class="text-[10px] bg-purple-50 text-purple-600 px-2 py-1 rounded-lg font-bold border border-purple-100">
+                🔊 Probar sonido
+              </button>
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+              <input v-model="newProduct.emoji" type="text" placeholder="🎁" class="p-2 bg-slate-50 rounded-xl text-center border-0 text-lg">
+              <input v-model="newProduct.sku" type="text" placeholder="SKU / Cód." class="p-2 bg-slate-50 rounded-xl border-0 text-xs font-semibold uppercase">
               <input v-model="newProduct.name" type="text" placeholder="Nombre del regalo" class="col-span-2 p-2 bg-slate-50 rounded-xl border-0 text-sm">
             </div>
             <div class="grid grid-cols-2 gap-2">
@@ -157,7 +197,12 @@
                 {{ product.emoji || '🎁' }}
               </div>
               <div class="flex-1 min-w-0">
-                <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
+                <div class="flex items-center gap-1.5">
+                  <span v-if="isAdmin && product.sku" class="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                    {{ product.sku }}
+                  </span>
+                  <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
+                </div>
                 <p class="text-xs text-slate-500 truncate">{{ product.desc || 'Sin detalle' }}</p>
                 <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
               </div>
@@ -170,17 +215,30 @@
             </div>
           </div>
 
-          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE PARA ADMIN) -->
+          <!-- PEDIDOS REALIZADOS (SOLO VISIBLE PARA ADMIN CON SKU PARA FACTURACIÓN) -->
           <div v-if="isAdmin && listOrders.length > 0" class="bg-purple-50/90 p-4 rounded-3xl border border-purple-200 mb-6 space-y-3">
             <h3 class="font-bold text-sm text-purple-800">📋 Pedidos Recibidos ({{ listOrders.length }})</h3>
-            <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3 rounded-2xl text-xs space-y-1 shadow-sm border border-purple-100">
+            <div v-for="ord in listOrders" :key="ord.id" class="bg-white p-3 rounded-2xl text-xs space-y-1.5 shadow-sm border border-purple-100">
               <div class="flex justify-between font-bold text-slate-800">
                 <span>{{ ord.buyerName }} ({{ ord.phone }})</span>
                 <span class="text-pink-600">₲{{ ord.total.toLocaleString() }}</span>
               </div>
-              <p class="text-[11px] text-slate-500">Pago: {{ ord.paymentMethod }} <span v-if="ord.giftBag">• 🛍️ Con Bolsa de Regalo</span></p>
-              <p v-if="ord.needInvoice" class="text-[11px] text-purple-600 font-semibold">🧾 Factura: {{ ord.ruc }} - {{ ord.invoiceName }}</p>
-              <p class="text-[11px] text-slate-600 pt-1 border-t">Regalos: {{ ord.items.map(i => i.name).join(', ') }}</p>
+              <p class="text-[11px] text-slate-500">Pago: {{ ord.paymentMethod }} <span v-if="ord.giftBag">• 🛍️ Bolsa de Regalo (₲{{ giftBagPrice.toLocaleString() }})</span></p>
+              <p v-if="ord.needInvoice" class="text-[11px] text-purple-700 bg-purple-50 px-2 py-1 rounded-lg font-semibold">
+                🧾 Factura: RUC {{ ord.ruc }} | {{ ord.invoiceName }}
+              </p>
+              <div class="pt-1 border-t space-y-1">
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Ítems para facturar:</p>
+                <div v-for="item in ord.items" :key="item.id" class="flex justify-between items-center text-[11px] text-slate-700">
+                  <span>
+                    <strong v-if="item.sku" class="text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded mr-1">{{ item.sku }}</strong>
+                    <span v-else class="text-slate-400 mr-1">[Sin SKU]</span>
+                    {{ item.name }}
+                  </span>
+                  <span class="font-semibold">₲{{ item.price.toLocaleString() }}</span>
+                </div>
+              </div>
+              <p v-if="ord.notes" class="text-[11px] text-slate-500 italic pt-1 border-t">Nota: "{{ ord.notes }}"</p>
             </div>
           </div>
 
@@ -301,7 +359,7 @@
       <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-xl text-center">
         <h3 class="font-bold text-base text-slate-800">Acceso Administrador</h3>
         <p class="text-xs text-slate-500">Ingresa la clave para acceder al Modo Tienda:</p>
-        <input v-model="pinInput" @keyup.enter="verifyPin" type="password" placeholder="PIN de acceso" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-base border-0 outline-none focus:ring-2 focus:ring-purple-300">
+        <input v-model="pinInput" @keyup.enter="verifyPin" type="password" inputmode="numeric" placeholder="PIN de acceso" class="w-full p-2.5 bg-slate-50 rounded-xl text-center font-bold text-base border-0 outline-none focus:ring-2 focus:ring-purple-300">
         <p v-if="pinError" class="text-xs text-red-500 font-semibold">⚠️ Clave incorrecta</p>
         <div class="flex gap-2 pt-1">
           <button @click="showPinModal = false; pinInput = ''; pinError = false" class="flex-1 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">Cancelar</button>
@@ -357,7 +415,9 @@
         const loading = ref(true);
         const saving = ref(false);
         const isAdmin = ref(false);
-        const adminPin = '21162430';
+        const ADMIN_PIN = '21162430';
+        const STORE_WHATSAPP = '595981925071'; // Número de WhatsApp de La Casita by AGM
+
         const showPinModal = ref(false);
         const pinInput = ref('');
         const pinError = ref(false);
@@ -373,6 +433,9 @@
         const paymentMethod = ref('transfer');
         const orderCompleted = ref(false);
         const lastOrder = ref(null);
+        const newOrderToast = ref(null);
+        let initialOrdersLoaded = false;
+        let knownOrderIds = new Set();
 
         const validationErrors = ref([]);
         const missingFields = ref({
@@ -389,8 +452,36 @@
         ];
 
         const newList = ref({ childName: '', event: '' });
-        const newProduct = ref({ name: '', price: null, emoji: '', desc: '' });
+        const newProduct = ref({ name: '', sku: '', price: null, emoji: '', desc: '' });
         const buyer = ref({ name: '', phone: '', needInvoice: false, ruc: '', invoiceName: '', notes: '' });
+
+        // SONIDO DE NOTIFICACIÓN (Campanita suave con Web Audio API)
+        const playNotificationSound = () => {
+          try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+
+            const playTone = (freq, startTime, duration) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, startTime);
+              gain.gain.setValueAtTime(0.001, startTime);
+              gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.03);
+              gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(startTime);
+              osc.stop(startTime + duration);
+            };
+
+            playTone(587.33, now, 0.25);        // Re5
+            playTone(880.00, now + 0.14, 0.45); // La5
+          } catch (e) {
+            console.warn("Audio no permitido hasta interacción:", e);
+          }
+        };
 
         const activeList = computed(() => {
           return lists.value.find(l => l.id === selectedListId.value) || lists.value[0] || null;
@@ -417,6 +508,24 @@
           return subtotal.value + (includeGiftBag.value ? giftBagPrice.value : 0);
         });
 
+        const whatsappOrderUrl = computed(() => {
+          if (!lastOrder.value) return '#';
+          const o = lastOrder.value;
+          const itemsText = o.items.map(i => `• ${i.sku ? '[' + i.sku + '] ' : ''}${i.name} (₲${i.price.toLocaleString()})`).join('\n');
+          const bagText = o.giftBag ? `\n• Bolsa de regalo especial (₲${giftBagPrice.value.toLocaleString()})` : '';
+          const invoiceText = o.needInvoice ? `\n\n🧾 *Factura Legal:*\nRUC/CI: ${o.ruc}\nRazón Social: ${o.invoiceName}` : '';
+          const noteText = o.notes ? `\n📝 *Nota:* ${o.notes}` : '';
+
+          const msg = `🎁 *Nuevo Pedido - Mi CasitApp*\n` +
+                      `*Lista:* ${o.childName}\n` +
+                      `*Cliente:* ${o.buyerName} (${o.phone})\n` +
+                      `*Pago:* ${o.paymentMethod}\n\n` +
+                      `*Regalos seleccionados:*\n${itemsText}${bagText}\n\n` +
+                      `*Total:* ₲${o.total.toLocaleString()}${invoiceText}${noteText}`;
+
+          return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(msg)}`;
+        });
+
         const clearError = (field) => {
           missingFields.value[field] = false;
           if (!missingFields.value.name && !missingFields.value.phone && !missingFields.value.ruc && !missingFields.value.invoiceName) {
@@ -434,6 +543,7 @@
         const handleAdminToggle = () => {
           if (isAdmin.value) {
             isAdmin.value = false;
+            newOrderToast.value = null;
           } else {
             showPinModal.value = true;
             pinInput.value = '';
@@ -442,10 +552,12 @@
         };
 
         const verifyPin = () => {
-          if (pinInput.value === adminPin) {
+          if (String(pinInput.value).trim() === ADMIN_PIN) {
             isAdmin.value = true;
             showPinModal.value = false;
             pinError.value = false;
+            // Desbloquear contexto de audio al ingresar como admin
+            playNotificationSound();
           } else {
             pinError.value = true;
           }
@@ -486,7 +598,7 @@
           }
         };
 
-        // AGREGAR PRODUCTO EN FIRESTORE
+        // AGREGAR PRODUCTO EN FIRESTORE (CON SKU)
         const addProduct = async () => {
           if (!newProduct.value.name || !newProduct.value.price || !activeList.value) {
             alert("Completa el nombre y el precio del regalo.");
@@ -498,6 +610,7 @@
               ...(activeList.value.products || []),
               {
                 id: Date.now(),
+                sku: newProduct.value.sku.trim().toUpperCase(),
                 name: newProduct.value.name.trim(),
                 price: Number(newProduct.value.price),
                 emoji: newProduct.value.emoji || '🎁',
@@ -508,7 +621,7 @@
             await updateDoc(doc(db, "wishlists", activeList.value.id), {
               products: updatedProducts
             });
-            newProduct.value = { name: '', price: null, emoji: '', desc: '' };
+            newProduct.value = { name: '', sku: '', price: null, emoji: '', desc: '' };
           } catch (e) {
             alert("Error al agregar regalo: " + e.message);
           } finally {
@@ -516,7 +629,7 @@
           }
         };
 
-        // CONFIRMAR COMPRA EN TIEMPO REAL CON VALIDACIÓN VISUAL
+        // CONFIRMAR COMPRA EN TIEMPO REAL
         const confirmOrder = async () => {
           if (!activeList.value) return;
 
@@ -599,7 +712,7 @@
           orderCompleted.value = false;
         };
 
-        // ESCUCHAR CAMBIOS EN TIEMPO REAL
+        // ESCUCHAR CAMBIOS EN TIEMPO REAL Y DISPARAR NOTIFICACIÓN + SONIDO
         onMounted(() => {
           const qLists = query(collection(db, "wishlists"), orderBy("createdAt", "desc"));
           onSnapshot(qLists, (snapshot) => {
@@ -610,13 +723,34 @@
             loading.value = false;
           }, (error) => {
             console.error("Error conectando a Firebase:", error);
-            alert("Error de conexión con Firestore: " + error.message);
             loading.value = false;
           });
 
           const qOrders = query(collection(db, "orders"), orderBy("createdAt", "desc"));
           onSnapshot(qOrders, (snapshot) => {
-            orders.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            if (!initialOrdersLoaded) {
+              fetchedOrders.forEach(o => knownOrderIds.add(o.id));
+              initialOrdersLoaded = true;
+            } else {
+              // Detectar si llegó un pedido nuevo
+              const newest = fetchedOrders.find(o => !knownOrderIds.has(o.id));
+              if (newest) {
+                knownOrderIds.add(newest.id);
+                if (isAdmin.value) {
+                  playNotificationSound();
+                  newOrderToast.value = newest;
+                  setTimeout(() => {
+                    if (newOrderToast.value && newOrderToast.value.id === newest.id) {
+                      newOrderToast.value = null;
+                    }
+                  }, 12000);
+                }
+              }
+            }
+
+            orders.value = fetchedOrders;
           });
         });
 
@@ -626,6 +760,7 @@
           availableProducts, listOrders, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, paymentMethods, newProduct, newList,
           showNewListModal, buyer, subtotal, total, orderCompleted, lastOrder,
+          newOrderToast, playNotificationSound, whatsappOrderUrl,
           validationErrors, missingFields, clearError, clearInvoiceErrors,
           toggleSelect, addProduct, createList, confirmOrder, resetOrder
         };
