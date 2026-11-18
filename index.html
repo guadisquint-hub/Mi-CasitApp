@@ -345,15 +345,27 @@
                         type="button"
                         class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all">
                   <span>🏁</span>
-                  <span>Dar de baja lista pasada (Activar Vale VIP 10%)</span>
+                  <span>
+                    {{ listTotalSoldAmount > 0
+                      ? `Dar de baja lista (Vale VIP de ₲${Math.round(listTotalSoldAmount * 0.10).toLocaleString()})`
+                      : 'Dar de baja lista (Vale VIP 5% OFF)' }}
+                  </span>
                 </button>
               </div>
 
               <!-- SI LA LISTA YA ESTÁ DADA DE BAJA / EN HISTORIAL -->
               <div v-else class="space-y-2 pt-1">
-                <div class="bg-amber-50 border border-amber-300 rounded-2xl p-2.5 text-[11px] space-y-1">
-                  <p class="font-bold text-amber-800">🎟️ Vale Cumpleañero VIP Activo (10% OFF):</p>
+                <div class="bg-amber-50 border border-amber-300 rounded-2xl p-2.5 text-[11px] space-y-1.5">
                   <div class="flex items-center justify-between">
+                    <p class="font-bold text-amber-800">🎟️ Vale Cumpleañero VIP:</p>
+                    <span class="px-2 py-0.5 rounded-full bg-pink-500 text-white font-bold text-[10px]">
+                      {{ getVipVoucherSummary(activeList).badgeText }}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-slate-600">
+                    {{ getVipVoucherSummary(activeList).adminDesc }}
+                  </p>
+                  <div class="flex items-center justify-between pt-0.5">
                     <span class="font-mono font-bold text-sm text-purple-700 bg-white px-2 py-0.5 rounded border border-amber-200">
                       {{ activeList.vipVoucherCode || getVipVoucherCode(activeList) }}
                     </span>
@@ -366,7 +378,7 @@
 
                 <div class="flex gap-2">
                   <button @click="sendThankYouWhatsapp(activeList)" class="flex-1 py-2 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs">
-                    💌 Enviar Agradecimiento + Vale 10%
+                    💌 Enviar Agradecimiento + Vale
                   </button>
                   <button @click="reactivateArchivedList(activeList)" class="py-2 px-2.5 bg-white text-slate-600 border border-slate-300 rounded-xl text-[11px] font-bold">
                     ♻️ Reactivar
@@ -692,11 +704,11 @@
                 <span class="px-2.5 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold text-[10px] uppercase">VIP</span>
               </div>
 
-              <!-- 1. VALE CUMPLEAÑERO VIP (10% DESCUENTO INMEDIATO) -->
+              <!-- 1. VALE CUMPLEAÑERO VIP (10% DEL TOTAL VENDIDO EN ₲, O 5% OFF SI NO SE VENDIÓ NADA) -->
               <div class="bg-white p-3.5 rounded-2xl border-2 border-dashed border-pink-400 space-y-2 shadow-xs">
                 <div class="flex items-center justify-between">
                   <span class="px-2.5 py-0.5 rounded-full bg-pink-500 text-white font-bold text-[10px] uppercase">
-                    🎟️ Cumpleañero VIP • 10% OFF
+                    🎟️ {{ getVipVoucherSummary(activeList).badgeText }}
                   </span>
                   <span v-if="activeList.vipVoucherRedeemed" class="text-[10px] font-bold text-slate-400 uppercase">
                     ✅ Canjeado
@@ -705,8 +717,19 @@
                     ● Disponible
                   </span>
                 </div>
-                <p class="text-xs font-bold text-slate-800">{{ t.vip10Title }}</p>
-                <p class="text-[11px] text-slate-500">{{ t.vip10Desc }}</p>
+
+                <p class="text-xs font-bold text-slate-800">
+                  {{ getVipVoucherSummary(activeList).isAmountVoucher
+                    ? t.vipAmountTitle(getVipVoucherSummary(activeList).amount)
+                    : t.vipFallback5Title }}
+                </p>
+
+                <p class="text-[11px] text-slate-500">
+                  {{ getVipVoucherSummary(activeList).isAmountVoucher
+                    ? t.vipAmountDesc(getVipVoucherSummary(activeList).soldTotal, getVipVoucherSummary(activeList).amount)
+                    : t.vipFallback5Desc }}
+                </p>
+
                 <div class="flex items-center justify-between bg-pink-50 px-3 py-2 rounded-xl border border-pink-200">
                   <span class="font-mono font-bold text-sm text-pink-700 tracking-wider">
                     {{ activeList.vipVoucherCode || getVipVoucherCode(activeList) }}
@@ -1061,12 +1084,23 @@
         </div>
         <h3 class="font-bold text-base text-slate-800">Cerrar y Archivar Lista</h3>
         <p class="text-xs text-slate-600 leading-relaxed">
-          Vas a dar de baja la lista de <strong>{{ listToArchive.childName }}</strong>. Quedará guardada en el <strong>Historial</strong> con su resumen de ventas y se activará su vale <strong>"Cumpleañero VIP" (10% OFF)</strong>.
+          Vas a dar de baja la lista de <strong>{{ listToArchive.childName }}</strong>. Quedará guardada en el <strong>Historial</strong> y se activará su beneficio <strong>"Cumpleañero VIP"</strong>:
         </p>
-        <div class="bg-slate-50 p-3 rounded-2xl text-xs space-y-1 border border-slate-200">
+
+        <!-- CÁLCULO PREVIO DEL VALE VIP SEGÚN VENTAS -->
+        <div class="bg-slate-50 p-3 rounded-2xl text-xs space-y-1.5 border border-slate-200">
           <p>Regalos vendidos: <strong>{{ (listToArchive.products || []).filter(p => p.purchased).length }} de {{ (listToArchive.products || []).length }}</strong></p>
-          <p>Monto total vendido: <strong class="text-pink-600">₲{{ (listToArchive.products || []).filter(p => p.purchased).reduce((s, p) => s + p.price, 0).toLocaleString() }}</strong></p>
+          <p>Monto total vendido: <strong class="text-pink-600">₲{{ archivePreviewStats.soldTotal.toLocaleString() }}</strong></p>
+          <div class="pt-1.5 border-t border-slate-200">
+            <span v-if="archivePreviewStats.soldTotal > 0" class="inline-block px-2.5 py-1 rounded-xl bg-amber-100 text-amber-900 font-bold text-[11px]">
+              🎟️ Vale VIP (10% vendido): ₲{{ archivePreviewStats.voucherAmount.toLocaleString() }}
+            </span>
+            <span v-else class="inline-block px-2.5 py-1 rounded-xl bg-purple-100 text-purple-800 font-bold text-[11px]">
+              🎟️ Sin ventas: Vale VIP 5% OFF en próxima compra
+            </span>
+          </div>
         </div>
+
         <div class="flex gap-2 pt-1">
           <button @click="listToArchive = null" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">
             Cancelar
@@ -1520,8 +1554,10 @@
         thankYouMessage: 'En La Casita by AGM estamos felices de haber sido parte de este cumpleaños tan especial. Como agradecimiento por elegirnos, activamos tus beneficios exclusivos:',
         keepAppInstalledHint: 'Conserva Mi CasitApp instalada en tu celular para recibir tus vales de mitad de año y la invitación al próximo cumpleaños.',
         vipWalletTitle: 'Billetera de Beneficios VIP',
-        vip10Title: 'Vale "Cumpleañero VIP" — 10% de Descuento',
-        vip10Desc: 'Válido para tu siguiente compra en La Casita by AGM presentando este código en caja.',
+        vipAmountTitle: (amount) => `Vale "Cumpleañero VIP" por ₲${Number(amount).toLocaleString()}`,
+        vipAmountDesc: (soldTotal, amount) => `Corresponde al 10% del total vendido de tu lista (₲${Number(soldTotal).toLocaleString()}). Úsalo como saldo a favor de ₲${Number(amount).toLocaleString()} en tu siguiente compra en La Casita by AGM.`,
+        vipFallback5Title: 'Vale "Cumpleañero VIP" — 5% de Descuento',
+        vipFallback5Desc: 'Como regalo de cortesía por elegirnos, disfruta de un 5% de descuento en tu siguiente compra en La Casita by AGM.',
         copyCodeBtn: 'Copiar código',
         halfYear5Title: 'Vale Celebración Medio Año — 5% de Descuento',
         halfYearUnlockedDesc: '¡Ya pasaron 6 meses desde el cumple! Disfruta de un 5% OFF especial en tienda.',
@@ -1640,8 +1676,10 @@
         thankYouMessage: 'Wir bei La Casita by AGM freuen uns sehr, Teil dieses besonderen Geburtstags gewesen zu sein. Als Dankeschön haben wir eure VIP-Vorteile aktiviert:',
         keepAppInstalledHint: 'Behaltet Mi CasitApp auf dem Handy installiert, um euren Halbjahres-Gutschein und die Einladung zum nächsten Geburtstag zu erhalten.',
         vipWalletTitle: 'VIP-Vorteilsbörse',
-        vip10Title: 'Gutschein "Cumpleañero VIP" — 10% Rabatt',
-        vip10Desc: 'Gültig für euren nächsten Einkauf bei La Casita by AGM.',
+        vipAmountTitle: (amount) => `Gutschein "Cumpleañero VIP" über ₲${Number(amount).toLocaleString()}`,
+        vipAmountDesc: (soldTotal, amount) => `Entspricht 10% des Gesamtumsatzes eurer Liste (₲${Number(soldTotal).toLocaleString()}). Einlösbar als Guthaben von ₲${Number(amount).toLocaleString()} bei eurem nächsten Einkauf.`,
+        vipFallback5Title: 'Gutschein "Cumpleañero VIP" — 5% Rabatt',
+        vipFallback5Desc: 'Als kleines Dankeschön erhaltet ihr 5% Rabatt auf euren nächsten Einkauf bei La Casita by AGM.',
         copyCodeBtn: 'Code kopieren',
         halfYear5Title: 'Halbjahres-Gutschein — 5% Rabatt',
         halfYearUnlockedDesc: '6 Monate sind vergangen! Genießt 5% Rabatt bei eurem Besuch.',
@@ -1760,8 +1798,10 @@
         thankYouMessage: 'At La Casita by AGM we are thrilled to have been part of this special birthday. As a thank you for choosing us, we unlocked your VIP rewards:',
         keepAppInstalledHint: 'Keep Mi CasitApp installed on your phone to receive your half-year voucher and next birthday invitation.',
         vipWalletTitle: 'VIP Rewards Wallet',
-        vip10Title: '"Cumpleañero VIP" Voucher — 10% OFF',
-        vip10Desc: 'Valid on your next purchase at La Casita by AGM by showing this code at checkout.',
+        vipAmountTitle: (amount) => `"Cumpleañero VIP" Voucher for ₲${Number(amount).toLocaleString()}`,
+        vipAmountDesc: (soldTotal, amount) => `Equal to 10% of your wishlist total sales (₲${Number(soldTotal).toLocaleString()}). Redeem ₲${Number(amount).toLocaleString()} store credit on your next purchase.`,
+        vipFallback5Title: '"Cumpleañero VIP" Voucher — 5% OFF',
+        vipFallback5Desc: 'As a thank-you courtesy for choosing us, enjoy 5% OFF your next purchase at La Casita by AGM.',
         copyCodeBtn: 'Copy code',
         halfYear5Title: 'Half-Year Celebration Voucher — 5% OFF',
         halfYearUnlockedDesc: '6 months have passed since the birthday! Enjoy a special 5% OFF in store.',
@@ -1911,12 +1951,47 @@
           return (listObj.accessCode || listObj.id.slice(0, 6)).toUpperCase();
         };
 
+        const computeListSoldTotal = (listObj) => {
+          if (!listObj) return 0;
+          if (listObj.finalStats && typeof listObj.finalStats.totalSoldAmount === 'number') {
+            return listObj.finalStats.totalSoldAmount;
+          }
+          return (listObj.products || [])
+            .filter(p => p.purchased)
+            .reduce((s, p) => s + (Number(p.price) || 0), 0);
+        };
+
+        const getVipVoucherSummary = (listObj) => {
+          const soldTotal = computeListSoldTotal(listObj);
+          const storedAmount = typeof listObj?.vipVoucherAmount === 'number'
+            ? listObj.vipVoucherAmount
+            : Math.round(soldTotal * 0.10);
+
+          if (soldTotal > 0 && storedAmount > 0) {
+            return {
+              isAmountVoucher: true,
+              soldTotal,
+              amount: storedAmount,
+              badgeText: `Cumpleañero VIP • ₲${storedAmount.toLocaleString()}`,
+              adminDesc: `10% sobre ₲${soldTotal.toLocaleString()} vendidos = ₲${storedAmount.toLocaleString()} de saldo a favor.`
+            };
+          }
+          return {
+            isAmountVoucher: false,
+            soldTotal: 0,
+            amount: 0,
+            badgeText: 'Cumpleañero VIP • 5% OFF',
+            adminDesc: 'Sin ventas registradas en la lista: Vale de cortesía del 5% OFF en su próxima compra.'
+          };
+        };
+
         const getVipVoucherCode = (listObj) => {
-          if (!listObj) return 'VIP-10';
+          if (!listObj) return 'VIP-5';
           const clean = (listObj.childName || 'VIP')
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
-          return `VIP-${clean}-10`;
+          const summary = getVipVoucherSummary(listObj);
+          return summary.isAmountVoucher ? `VIP-${clean}-10` : `VIP-${clean}-5`;
         };
 
         const getHalfYearVoucherCode = (listObj) => {
@@ -1951,9 +2026,15 @@
         const sendThankYouWhatsapp = (listObj) => {
           if (!listObj) return;
           const vipCode = listObj.vipVoucherCode || getVipVoucherCode(listObj);
+          const summary = getVipVoucherSummary(listObj);
           const listLink = `${OFFICIAL_BASE_URL}?list=${encodeURIComponent(listObj.id)}`;
+
+          const benefitText = summary.isAmountVoucher
+            ? `Como agradecimiento por elegirnos (y por los ₲${summary.soldTotal.toLocaleString()} vendidos en su lista), les regalamos el vale *"Cumpleañero VIP"* por un valor de *₲${summary.amount.toLocaleString()}* (10% del total vendido) para su próxima compra en nuestra tienda:`
+            : `Como agradecimiento por elegirnos, les regalamos el vale de cortesía *"Cumpleañero VIP"* con un *5% de descuento* para su próxima compra en nuestra tienda:`;
+
           const msg = `💖 *¡Muchas gracias por elegir La Casita by AGM para el cumple de ${listObj.childName}!* 🎁\n\n` +
-                      `Fue un placer acompañarlos en este día tan especial. Como agradecimiento, les regalamos el vale *"Cumpleañero VIP"* con un *10% de descuento* para su próxima compra en nuestra tienda:\n\n` +
+                      `Fue un placer acompañarlos en este día tan especial. ${benefitText}\n\n` +
                       `🎟️ *Código de Vale:* ${vipCode}\n\n` +
                       `📲 Mantengan *Mi CasitApp* instalada en su celular ingresando aquí para ver su vale y recibir en 6 meses su beneficio de Medio Año:\n${listLink}`;
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
@@ -2181,6 +2262,8 @@
           const inviteDate = new Date(nextBdayDate);
           inviteDate.setDate(inviteDate.getDate() - 14);
 
+          const summary = getVipVoucherSummary(listObj);
+
           if (now >= inviteDate && lastShownStage !== 'next_bday') {
             sessionStorage.setItem(shownKey, 'next_bday');
             playNotificationSound();
@@ -2198,11 +2281,13 @@
               body: `Se cumplen 6 meses del cumple de ${listObj.childName}. Ya puedes usar tu vale del 5% en tienda.`
             };
           } else if (!lastShownStage && !listObj.vipVoucherRedeemed) {
-            sessionStorage.setItem(shownKey, 'vip_10');
+            sessionStorage.setItem(shownKey, 'vip_welcome');
             playNotificationSound();
             vipMilestoneToast.value = {
               icon: '👑',
-              title: '¡Tienes un Vale Cumpleañero VIP (10% OFF)!',
+              title: summary.isAmountVoucher
+                ? `¡Vale Cumpleañero VIP de ₲${summary.amount.toLocaleString()}!`
+                : '¡Vale Cumpleañero VIP (5% OFF)!',
               body: `Gracias por elegir La Casita by AGM para ${listObj.childName}. Usa tu código en tu próxima compra.`
             };
           }
@@ -2535,6 +2620,17 @@
           }
         };
 
+        const archivePreviewStats = computed(() => {
+          if (!listToArchive.value) return { soldTotal: 0, voucherAmount: 0 };
+          const soldTotal = (listToArchive.value.products || [])
+            .filter(p => p.purchased)
+            .reduce((s, p) => s + (Number(p.price) || 0), 0);
+          return {
+            soldTotal,
+            voucherAmount: soldTotal > 0 ? Math.round(soldTotal * 0.10) : 0
+          };
+        });
+
         const openArchiveModal = (listObj) => {
           listToArchive.value = listObj;
         };
@@ -2546,8 +2642,13 @@
             const target = listToArchive.value;
             const prods = target.products || [];
             const soldCount = prods.filter(p => p.purchased).length;
-            const totalSoldGs = prods.filter(p => p.purchased).reduce((s, p) => s + p.price, 0);
-            const vipCode = target.vipVoucherCode || getVipVoucherCode(target);
+            const totalSoldGs = prods.filter(p => p.purchased).reduce((s, p) => s + (Number(p.price) || 0), 0);
+            const voucherAmountGs = totalSoldGs > 0 ? Math.round(totalSoldGs * 0.10) : 0;
+
+            const cleanName = (target.childName || 'VIP')
+              .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+            const vipCode = totalSoldGs > 0 ? `VIP-${cleanName}-10` : `VIP-${cleanName}-5`;
 
             await updateDoc(doc(db, "wishlists", target.id), {
               isArchived: true,
@@ -2557,6 +2658,8 @@
                 soldItems: soldCount,
                 totalSoldAmount: totalSoldGs
               },
+              vipVoucherType: totalSoldGs > 0 ? 'amount_10pct' : 'percent_5',
+              vipVoucherAmount: voucherAmountGs,
               vipVoucherCode: vipCode,
               vipVoucherRedeemed: target.vipVoucherRedeemed || false
             });
@@ -3169,14 +3272,14 @@
           showQrModal, qrCodeImageUrl, printQrCode, copyCleanLink, copiedLink,
           showFamilyQrModal, activeListQrUrl, getListDisplayCode, shareListWhatsappAdmin, shareListWhatsappFamily,
           sendThankYouWhatsapp, downloadFamilyQrImage, copyFamilyDirectLink, copiedFamilyLink,
-          getVipVoucherCode, getHalfYearVoucherCode, copyVoucherCode, copiedVoucher,
+          getVipVoucherSummary, getVipVoucherCode, getHalfYearVoucherCode, copyVoucherCode, copiedVoucher,
           milestoneStatus, vipMilestoneToast, whatsappNextBirthdayUrl,
           isParentUnlocked, showParentPinModal, parentPinInput, parentPinError, openParentPanel, verifyParentPin,
           isDemoMode, enterDemoMode,
           lockedListId, accessCodeInput, accessCodeError, searchingList, openListByCode, exitCurrentGuestList,
           lists, activeListsOnly, archivedListsOnly, filteredAdminLists, selectedListId, activeList,
           formatEventDateTime, toggleListConfirmed,
-          listToArchive, openArchiveModal, confirmArchiveList, markVipVoucherRedeemed, reactivateArchivedList,
+          listToArchive, archivePreviewStats, openArchiveModal, confirmArchiveList, markVipVoucherRedeemed, reactivateArchivedList,
           availableProducts, purchasedProducts, listTotalSoldAmount, totalProductsCount, progressPercentage,
           adminOrders, pendingOrdersCount, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, localizedPaymentMethods, newProduct, newList,
