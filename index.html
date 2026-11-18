@@ -41,7 +41,7 @@
 <body class="bg-gradient-pastel min-h-screen text-slate-700 pb-12">
   <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-2xl bg-white/40 border-x border-white/60 relative">
     
-    <!-- NOTIFICACIÓN FLOTANTE PARA TIENDA (SOLO ACTIVA EN MODO TIENDA) -->
+    <!-- NOTIFICACIÓN FLOTANTE PARA TIENDA (NUEVO PEDIDO) -->
     <div v-if="isAdmin && newOrderToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
       <div class="bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-3xl p-4 shadow-2xl space-y-2">
         <div class="flex items-start justify-between gap-2">
@@ -78,6 +78,22 @@
             </div>
           </div>
           <button @click="readyOrderToast = null" class="text-slate-400 hover:text-slate-600 font-bold text-sm px-1.5">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTIFICACIÓN FLOTANTE PARA FAMILIA (VALES VIP / MEDIO AÑO / PRÓXIMO CUMPLE) -->
+    <div v-if="!isAdmin && vipMilestoneToast" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-50 toast-enter">
+      <div class="bg-gradient-to-r from-amber-50 to-pink-50 backdrop-blur-md border-2 border-amber-400 rounded-3xl p-4 shadow-2xl space-y-2">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg font-bold animate-bounce">{{ vipMilestoneToast.icon }}</span>
+            <div>
+              <p class="text-xs font-bold text-amber-800 uppercase tracking-wide">{{ vipMilestoneToast.title }}</p>
+              <p class="text-[11px] text-slate-700 leading-snug">{{ vipMilestoneToast.body }}</p>
+            </div>
+          </div>
+          <button @click="vipMilestoneToast = null" class="text-slate-400 hover:text-slate-600 font-bold text-sm px-1.5">✕</button>
         </div>
       </div>
     </div>
@@ -124,9 +140,10 @@
             </button>
 
             <!-- BOTÓN PANEL DE PADRES / CUMPLEAÑERO (SOLO EN LISTAS REALES) -->
-            <button v-if="activeList && !isDemoMode" @click="openParentPanel" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border"
+            <button v-if="activeList && !isDemoMode" @click="openParentPanel" class="px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm border relative"
                     :class="isParentUnlocked ? 'bg-pink-500 text-white border-pink-500' : 'bg-pink-100 text-pink-700 border-pink-200'">
               <span>👨‍👩‍👧 {{ t.familyMode }}</span>
+              <span v-if="activeList.isArchived" class="w-2 h-2 rounded-full bg-amber-500 absolute -top-0.5 -right-0.5 animate-ping"></span>
             </button>
           </template>
         </div>
@@ -173,15 +190,15 @@
            1. VISTA EXCLUSIVA DE MODO TIENDA (PESTAÑAS: LISTAS / PEDIDOS)
            ========================================================= -->
       <template v-if="isAdmin">
-        <!-- NAVEGACIÓN DE PESTAÑAS DE LA TIENDA -->
+        <!-- NAVEGACIÓN DE PESTAÑAS PRINCIPALES DE LA TIENDA -->
         <div class="grid grid-cols-2 gap-2 bg-white/85 p-1.5 rounded-2xl border border-pink-100 shadow-sm mb-4">
           <button @click="adminTab = 'lists'"
                   class="py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
                   :class="adminTab === 'lists' ? 'bg-pink-500 text-white shadow-sm' : 'text-slate-600 hover:bg-pink-50'">
-            <span>🎂 Listas Activas</span>
+            <span>🎂 Listas</span>
             <span class="px-1.5 py-0.5 rounded-full text-[10px]"
                   :class="adminTab === 'lists' ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'">
-              {{ lists.length }}
+              {{ activeListsOnly.length }}
             </span>
           </button>
           <button @click="adminTab = 'orders'"
@@ -195,34 +212,49 @@
           </button>
         </div>
 
-        <!-- PESTAÑA A: TODAS LAS LISTAS ACTIVAS + EDICIÓN DE LISTA SELECCIONADA -->
+        <!-- PESTAÑA A: LISTAS ACTIVAS E HISTORIAL DE LISTAS PASADAS -->
         <template v-if="adminTab === 'lists'">
-          <!-- BARRA SUPERIOR DE GESTIÓN -->
+          <!-- SUB-FILTRO ACTIVAS VS HISTORIAL + BOTONES DE ACCIÓN -->
           <div class="flex items-center justify-between gap-2 mb-3">
-            <h2 class="font-bold text-sm text-slate-800">Cumpleaños Registrados ({{ lists.length }})</h2>
+            <div class="flex bg-white/80 p-1 rounded-xl border border-slate-200 text-[11px] font-bold">
+              <button @click="adminListFilter = 'active'"
+                      class="px-2.5 py-1 rounded-lg transition-all"
+                      :class="adminListFilter === 'active' ? 'bg-pink-500 text-white shadow-xs' : 'text-slate-500'">
+                Activas ({{ activeListsOnly.length }})
+              </button>
+              <button @click="adminListFilter = 'archived'"
+                      class="px-2.5 py-1 rounded-lg transition-all"
+                      :class="adminListFilter === 'archived' ? 'bg-slate-700 text-white shadow-xs' : 'text-slate-500'">
+                Historial ({{ archivedListsOnly.length }})
+              </button>
+            </div>
+
             <div class="flex gap-1.5">
-              <button @click="playNotificationSound" type="button" title="Probar sonido de alerta" class="px-2.5 py-2 bg-white text-purple-600 rounded-xl shadow-xs text-xs font-bold border border-purple-200">
+              <button @click="playNotificationSound" type="button" title="Probar sonido" class="px-2 py-2 bg-white text-purple-600 rounded-xl shadow-xs text-xs font-bold border border-purple-200">
                 🔊
               </button>
-              <button @click="showQrModal = true" title="QR general de la tienda" class="px-2.5 py-2 bg-purple-100 text-purple-700 rounded-xl shadow-xs text-xs font-bold border border-purple-200">
-                📱 QR App
+              <button @click="showQrModal = true" title="QR general" class="px-2.5 py-2 bg-purple-100 text-purple-700 rounded-xl shadow-xs text-xs font-bold border border-purple-200">
+                📱 QR
               </button>
-              <button @click="showNewListModal = true" class="px-3 py-2 bg-pink-500 text-white rounded-xl shadow-sm text-xs font-bold">
-                + Nueva Lista
+              <button @click="showNewListModal = true" class="px-2.5 py-2 bg-pink-500 text-white rounded-xl shadow-sm text-xs font-bold">
+                + Nueva
               </button>
             </div>
           </div>
 
-          <!-- CUADRÍCULA / CARRUSEL DE TODAS LAS LISTAS ACTIVAS -->
-          <div v-if="lists.length > 0" class="space-y-2 mb-5 max-h-56 overflow-y-auto pr-0.5">
-            <div v-for="list in lists" :key="list.id"
+          <!-- LISTADO DE CUMPLES (FILTRADO POR ACTIVAS O HISTORIAL) -->
+          <div v-if="filteredAdminLists.length > 0" class="space-y-2 mb-5 max-h-56 overflow-y-auto pr-0.5">
+            <div v-for="list in filteredAdminLists" :key="list.id"
                  @click="selectedListId = list.id"
                  class="p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2"
                  :class="selectedListId === list.id ? 'bg-white border-pink-400 shadow-md ring-2 ring-pink-200' : 'bg-white/75 border-white hover:bg-white'">
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5">
                   <span class="font-bold text-sm text-slate-800 truncate">{{ list.childName }}</span>
-                  <span v-if="list.isConfirmed" class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase flex-shrink-0">
+                  <span v-if="list.isArchived" class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[9px] font-bold uppercase flex-shrink-0">
+                    🏁 Cerrada
+                  </span>
+                  <span v-else-if="list.isConfirmed" class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase flex-shrink-0">
                     🔒 Fijada
                   </span>
                   <span v-else class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold uppercase flex-shrink-0">
@@ -234,24 +266,28 @@
                 </p>
               </div>
               <div class="text-right flex-shrink-0">
-                <span class="text-xs font-bold text-pink-600 block">
-                  {{ (list.products || []).filter(p => !p.purchased).length }}/{{ (list.products || []).length }} disp.
+                <span class="text-xs font-bold block" :class="list.isArchived ? 'text-emerald-700' : 'text-pink-600'">
+                  {{ (list.products || []).filter(p => p.purchased).length }}/{{ (list.products || []).length }} vend.
                 </span>
                 <span class="text-[10px] font-bold text-purple-600 uppercase">{{ getListDisplayCode(list) }}</span>
               </div>
             </div>
           </div>
           <div v-else class="text-center py-8 bg-white/80 rounded-3xl border border-dashed border-pink-200 mb-5 space-y-2">
-            <p class="text-3xl">🎂</p>
-            <p class="text-xs font-bold text-slate-600">Aún no hay listas creadas</p>
-            <button @click="showNewListModal = true" class="px-4 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl shadow-sm">
+            <p class="text-3xl">{{ adminListFilter === 'archived' ? '🗂️' : '🎂' }}</p>
+            <p class="text-xs font-bold text-slate-600">
+              {{ adminListFilter === 'archived' ? 'Aún no hay listas archivadas en el historial' : 'Aún no hay listas activas' }}
+            </p>
+            <button v-if="adminListFilter === 'active'" @click="showNewListModal = true" class="px-4 py-2 bg-pink-500 text-white font-bold text-xs rounded-xl shadow-sm">
               + Crear primera lista
             </button>
           </div>
 
-          <!-- DETALLE Y GESTIÓN DE LA LISTA SELECCIONADA -->
+          <!-- DETALLE DE LA LISTA SELECCIONADA EN MODO TIENDA -->
           <template v-if="activeList">
-            <div class="bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 p-4 rounded-3xl shadow-sm mb-4 text-slate-800 space-y-2.5">
+            <!-- TARJETA RESUMEN Y ACCIONES DE LA LISTA -->
+            <div class="p-4 rounded-3xl shadow-sm mb-4 text-slate-800 space-y-2.5"
+                 :class="activeList.isArchived ? 'bg-gradient-to-r from-slate-200 via-purple-100 to-pink-100 border border-slate-300' : 'bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200'">
               <div class="flex items-center justify-between flex-wrap gap-1.5">
                 <span class="bg-white/80 px-3 py-1 rounded-full text-[11px] font-bold text-pink-600 uppercase">
                   {{ activeList.event }}
@@ -265,7 +301,7 @@
                 <div>
                   <h3 class="text-xl font-bold leading-tight">Lista de {{ activeList.childName }}</h3>
                   <p class="text-[11px] text-slate-600">
-                    Estado: <strong>{{ activeList.isConfirmed ? 'Lista confirmada y fija' : 'En preparación en tienda' }}</strong>
+                    Estado: <strong>{{ activeList.isArchived ? 'Finalizada / Dada de baja (Beneficios VIP activos)' : (activeList.isConfirmed ? 'Confirmada y fija' : 'En preparación en tienda') }}</strong>
                   </p>
                 </div>
                 <button @click="openEditListModal" class="px-2.5 py-1.5 bg-white/85 hover:bg-white rounded-xl text-xs font-bold text-purple-700 shadow-xs">
@@ -273,18 +309,69 @@
                 </button>
               </div>
 
-              <!-- BOTÓN PARA FIJAR / CONFIRMAR LA LISTA UNA VEZ TERMINADA -->
-              <div class="flex items-center justify-between gap-2 pt-1">
-                <button @click="toggleListConfirmed(activeList)"
-                        :disabled="saving"
-                        class="flex-1 py-2 px-3 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5"
-                        :class="activeList.isConfirmed ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-300'">
-                  <span v-if="activeList.isConfirmed">✅ Lista Confirmada y Fija</span>
-                  <span v-else>📌 Confirmar y Fijar Lista</span>
+              <!-- ESTADÍSTICAS DE VENTA DE LA LISTA (SIEMPRE VISIBLES PARA ADMIN) -->
+              <div class="grid grid-cols-3 gap-2 bg-white/75 p-2.5 rounded-2xl text-center border border-white">
+                <div>
+                  <span class="text-sm font-bold text-emerald-700 block">{{ purchasedProducts.length }} / {{ totalProductsCount }}</span>
+                  <span class="text-[9px] font-bold text-slate-500 uppercase">Regalos Vendidos</span>
+                </div>
+                <div>
+                  <span class="text-sm font-bold text-pink-600 block">₲{{ listTotalSoldAmount.toLocaleString() }}</span>
+                  <span class="text-[9px] font-bold text-slate-500 uppercase">Total Vendido</span>
+                </div>
+                <div>
+                  <span class="text-sm font-bold text-purple-700 block">{{ progressPercentage }}%</span>
+                  <span class="text-[9px] font-bold text-slate-500 uppercase">Completado</span>
+                </div>
+              </div>
+
+              <!-- BOTONES DE CONTROL DEL CICLO DE VIDA DE LA LISTA -->
+              <div v-if="!activeList.isArchived" class="space-y-2 pt-1">
+                <div class="flex items-center justify-between gap-2">
+                  <button @click="toggleListConfirmed(activeList)"
+                          :disabled="saving"
+                          class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1"
+                          :class="activeList.isConfirmed ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-300'">
+                    <span v-if="activeList.isConfirmed">✅ Lista Fijada</span>
+                    <span v-else>📌 Fijar Lista</span>
+                  </button>
+                  <button @click="shareListWhatsappAdmin" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs">
+                    📲 Pasar a Mamá
+                  </button>
+                </div>
+
+                <!-- BOTÓN DAR DE BAJA / FINALIZAR LISTA CUANDO PASE LA FECHA -->
+                <button @click="openArchiveModal(activeList)"
+                        type="button"
+                        class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all">
+                  <span>🏁</span>
+                  <span>Dar de baja lista pasada (Activar Vale VIP 10%)</span>
                 </button>
-                <button @click="shareListWhatsappAdmin" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs">
-                  📲 Pasar a Mamá
-                </button>
+              </div>
+
+              <!-- SI LA LISTA YA ESTÁ DADA DE BAJA / EN HISTORIAL -->
+              <div v-else class="space-y-2 pt-1">
+                <div class="bg-amber-50 border border-amber-300 rounded-2xl p-2.5 text-[11px] space-y-1">
+                  <p class="font-bold text-amber-800">🎟️ Vale Cumpleañero VIP Activo (10% OFF):</p>
+                  <div class="flex items-center justify-between">
+                    <span class="font-mono font-bold text-sm text-purple-700 bg-white px-2 py-0.5 rounded border border-amber-200">
+                      {{ activeList.vipVoucherCode || getVipVoucherCode(activeList) }}
+                    </span>
+                    <span v-if="activeList.vipVoucherRedeemed" class="text-emerald-700 font-bold">✅ Ya canjeado en tienda</span>
+                    <button v-else @click="markVipVoucherRedeemed(activeList)" class="px-2 py-1 bg-emerald-600 text-white rounded-lg font-bold text-[10px]">
+                      Marcar Canjeado
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex gap-2">
+                  <button @click="sendThankYouWhatsapp(activeList)" class="flex-1 py-2 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs">
+                    💌 Enviar Agradecimiento + Vale 10%
+                  </button>
+                  <button @click="reactivateArchivedList(activeList)" class="py-2 px-2.5 bg-white text-slate-600 border border-slate-300 rounded-xl text-[11px] font-bold">
+                    ♻️ Reactivar
+                  </button>
+                </div>
               </div>
 
               <div class="pt-1.5 border-t border-white/50 flex items-center justify-between text-[11px]">
@@ -293,8 +380,8 @@
               </div>
             </div>
 
-            <!-- AGREGAR PRODUCTOS (SIEMPRE DISPONIBLE INCLUSO CON LISTA FIJA) -->
-            <div class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-5 space-y-3">
+            <!-- AGREGAR PRODUCTOS (SOLO SI LA LISTA NO ESTÁ DADA DE BAJA) -->
+            <div v-if="!activeList.isArchived" class="bg-white p-4 rounded-3xl shadow-md border border-pink-100 mb-5 space-y-3">
               <div class="flex items-center justify-between">
                 <h4 class="font-bold text-sm text-pink-600">
                   ➕ {{ activeList.isConfirmed ? 'Agregar producto extra a lista fija' : 'Agregar Regalo a la Lista' }}
@@ -362,10 +449,10 @@
               </button>
             </div>
 
-            <!-- PRODUCTOS DE LA LISTA (CON EDICIÓN SIEMPRE HABILITADA) -->
+            <!-- PRODUCTOS DE LA LISTA -->
             <div class="space-y-2.5">
               <h4 class="font-bold text-xs uppercase tracking-wider text-slate-500 px-1">
-                Productos en esta lista ({{ (activeList.products || []).length }})
+                Registro de Productos ({{ (activeList.products || []).length }})
               </h4>
 
               <div v-for="product in (activeList.products || [])" :key="product.id" 
@@ -385,11 +472,12 @@
                   </div>
                   <p class="text-xs text-slate-500 truncate">
                     ₲ {{ product.price.toLocaleString() }}
-                    <span v-if="product.purchased" class="ml-1.5 text-emerald-700 font-bold">• ✅ Reservado</span>
+                    <span v-if="product.purchased" class="ml-1.5 text-emerald-700 font-bold">• ✅ Vendido</span>
+                    <span v-else class="ml-1.5 text-slate-400">• Sin reservar</span>
                   </p>
                 </div>
                 
-                <button @click="openEditModal(product)" type="button" title="Editar nombre, precio o detalle"
+                <button v-if="!activeList.isArchived" @click="openEditModal(product)" type="button" title="Editar nombre, precio o detalle"
                         class="px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 text-xs font-bold flex-shrink-0">
                   ✏️ Editar
                 </button>
@@ -403,7 +491,7 @@
           <div class="flex items-center justify-between mb-3">
             <div>
               <h2 class="font-bold text-sm text-slate-800">Todos los Pedidos ({{ adminOrders.length }})</h2>
-              <p class="text-[11px] text-slate-500">Recibirás alerta sonora automática cuando entre uno nuevo</p>
+              <p class="text-[11px] text-slate-500">Alerta sonora automática cuando entre uno nuevo</p>
             </div>
             <button @click="playNotificationSound" type="button" class="px-2.5 py-1.5 bg-white text-purple-600 rounded-xl text-[11px] font-bold border border-purple-200 shadow-xs">
               🔊 Probar alerta
@@ -475,7 +563,7 @@
       </template>
 
       <!-- =========================================================
-           2. VISTA DE CLIENTE / INVITADO / EJEMPLO INTERACTIVO
+           2. VISTA DE CLIENTE / INVITADO / FAMILIA VIP / EJEMPLO
            ========================================================= -->
       <template v-else>
 
@@ -567,7 +655,117 @@
 
             <div>
               <h2 class="text-2xl font-bold mt-1 leading-tight">{{ t.listTitle(activeList.childName) }}</h2>
-              <p class="text-xs text-slate-600 mt-1">{{ t.listSubtitle }}</p>
+              <p class="text-xs text-slate-600 mt-1">
+                {{ activeList.isArchived ? t.archivedListPublicSub : t.listSubtitle }}
+              </p>
+            </div>
+          </div>
+
+          <!-- =========================================================
+               TARJETA DE AGRADECIMIENTO Y CLUB CUMPLEAÑERO VIP (CUANDO LA LISTA FINALIZÓ)
+               ========================================================= -->
+          <div v-if="activeList.isArchived && !isDemoMode" class="space-y-4 mb-6">
+            <!-- MENSAJE DE AGRADECIMIENTO DE LA CASITA BY AGM -->
+            <div class="bg-white/95 p-5 rounded-3xl shadow-md border-2 border-pink-200 text-center space-y-2.5">
+              <div class="w-14 h-14 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center mx-auto text-3xl shadow-inner">
+                💖
+              </div>
+              <h3 class="font-bold text-lg text-slate-800">{{ t.thankYouTitle(activeList.childName) }}</h3>
+              <p class="text-xs text-slate-600 leading-relaxed">
+                {{ t.thankYouMessage }}
+              </p>
+              <div class="bg-purple-50 p-2.5 rounded-2xl border border-purple-100 text-[11px] text-purple-800 font-semibold">
+                📲 {{ t.keepAppInstalledHint }}
+              </div>
+            </div>
+
+            <!-- BILLETERA DE BENEFICIOS Y VALES VIP -->
+            <div class="bg-gradient-to-br from-amber-50 via-white to-pink-50 p-4 rounded-3xl shadow-md border-2 border-amber-300 space-y-3">
+              <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">👑</span>
+                  <div>
+                    <h4 class="font-bold text-sm text-amber-900">{{ t.vipWalletTitle }}</h4>
+                    <p class="text-[10px] text-amber-700 font-semibold">La Casita by AGM • {{ activeList.childName }}</p>
+                  </div>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold text-[10px] uppercase">VIP</span>
+              </div>
+
+              <!-- 1. VALE CUMPLEAÑERO VIP (10% DESCUENTO INMEDIATO) -->
+              <div class="bg-white p-3.5 rounded-2xl border-2 border-dashed border-pink-400 space-y-2 shadow-xs">
+                <div class="flex items-center justify-between">
+                  <span class="px-2.5 py-0.5 rounded-full bg-pink-500 text-white font-bold text-[10px] uppercase">
+                    🎟️ Cumpleañero VIP • 10% OFF
+                  </span>
+                  <span v-if="activeList.vipVoucherRedeemed" class="text-[10px] font-bold text-slate-400 uppercase">
+                    ✅ Canjeado
+                  </span>
+                  <span v-else class="text-[10px] font-bold text-emerald-600 uppercase">
+                    ● Disponible
+                  </span>
+                </div>
+                <p class="text-xs font-bold text-slate-800">{{ t.vip10Title }}</p>
+                <p class="text-[11px] text-slate-500">{{ t.vip10Desc }}</p>
+                <div class="flex items-center justify-between bg-pink-50 px-3 py-2 rounded-xl border border-pink-200">
+                  <span class="font-mono font-bold text-sm text-pink-700 tracking-wider">
+                    {{ activeList.vipVoucherCode || getVipVoucherCode(activeList) }}
+                  </span>
+                  <button @click="copyVoucherCode(activeList.vipVoucherCode || getVipVoucherCode(activeList))" class="text-[11px] font-bold text-purple-700 bg-white px-2.5 py-1 rounded-lg shadow-xs">
+                    {{ copiedVoucher === (activeList.vipVoucherCode || getVipVoucherCode(activeList)) ? '✅ ' + t.copiedBtn : '📋 ' + t.copyCodeBtn }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 2. VALE DE MEDIO AÑO (5% DESCUENTO A LOS 6 MESES) -->
+              <div class="bg-white p-3.5 rounded-2xl border-2 border-dashed space-y-2 shadow-xs"
+                   :class="milestoneStatus.halfYearUnlocked ? 'border-purple-400' : 'border-slate-200 opacity-90'">
+                <div class="flex items-center justify-between">
+                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase"
+                        :class="milestoneStatus.halfYearUnlocked ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'">
+                    🎂 Medio Año • 5% OFF
+                  </span>
+                  <span v-if="milestoneStatus.halfYearUnlocked" class="text-[10px] font-bold text-emerald-600 uppercase">
+                    🎉 ¡Desbloqueado!
+                  </span>
+                  <span v-else class="text-[10px] font-bold text-purple-600">
+                    ⏳ {{ milestoneStatus.halfYearDateFormatted }}
+                  </span>
+                </div>
+                <p class="text-xs font-bold text-slate-800">{{ t.halfYear5Title }}</p>
+                <p class="text-[11px] text-slate-500">
+                  {{ milestoneStatus.halfYearUnlocked ? t.halfYearUnlockedDesc : t.halfYearLockedDesc(milestoneStatus.halfYearDateFormatted) }}
+                </p>
+                <div v-if="milestoneStatus.halfYearUnlocked" class="flex items-center justify-between bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
+                  <span class="font-mono font-bold text-sm text-purple-700 tracking-wider">
+                    {{ getHalfYearVoucherCode(activeList) }}
+                  </span>
+                  <button @click="copyVoucherCode(getHalfYearVoucherCode(activeList))" class="text-[11px] font-bold text-purple-700 bg-white px-2.5 py-1 rounded-lg shadow-xs">
+                    {{ copiedVoucher === getHalfYearVoucherCode(activeList) ? '✅ ' + t.copiedBtn : '📋 ' + t.copyCodeBtn }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 3. INVITACIÓN PRÓXIMO CUMPLEAÑOS (2 SEMANAS ANTES) -->
+              <div class="bg-white p-3.5 rounded-2xl border space-y-2 shadow-xs"
+                   :class="milestoneStatus.nextBdayInviteActive ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-200'">
+                <div class="flex items-center justify-between">
+                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase"
+                        :class="milestoneStatus.nextBdayInviteActive ? 'bg-emerald-500 text-white' : 'bg-sky-100 text-sky-700'">
+                    🎈 {{ t.nextBdayBadge }}
+                  </span>
+                  <span class="text-[10px] font-bold text-slate-500">
+                    📅 {{ milestoneStatus.nextBdayDateFormatted }}
+                  </span>
+                </div>
+                <p class="text-xs font-bold text-slate-800">{{ t.nextBdayTitle(activeList.childName) }}</p>
+                <p class="text-[11px] text-slate-600">
+                  {{ milestoneStatus.nextBdayInviteActive ? t.nextBdayActiveDesc : t.nextBdayUpcomingDesc(milestoneStatus.inviteDateFormatted) }}
+                </p>
+                <a :href="whatsappNextBirthdayUrl" target="_blank" class="block w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-center font-bold text-[11px] rounded-xl shadow-xs transition-all">
+                  📲 {{ t.reserveNextListBtn }}
+                </a>
+              </div>
             </div>
           </div>
 
@@ -583,8 +781,8 @@
               </button>
             </div>
 
-            <!-- TARJETA PARA COMPARTIR QR Y ENLACE DIRECTO A INVITADOS -->
-            <div class="bg-gradient-to-r from-pink-50 to-purple-50 p-3 rounded-2xl border border-pink-200 flex items-center gap-3">
+            <!-- TARJETA PARA COMPARTIR QR Y ENLACE DIRECTO A INVITADOS (SOLO SI SIGUE ACTIVA) -->
+            <div v-if="!activeList.isArchived" class="bg-gradient-to-r from-pink-50 to-purple-50 p-3 rounded-2xl border border-pink-200 flex items-center gap-3">
               <div @click="showFamilyQrModal = true" class="bg-white p-1.5 rounded-xl border border-pink-200 shadow-xs cursor-pointer flex-shrink-0">
                 <img :src="activeListQrUrl" alt="QR de la lista" class="w-16 h-16">
               </div>
@@ -619,20 +817,6 @@
               </div>
             </div>
 
-            <!-- BARRA DE PROGRESO -->
-            <div class="space-y-1">
-              <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-pink-400 to-emerald-400 transition-all duration-500"
-                     :style="{ width: progressPercentage + '%' }"></div>
-              </div>
-              <p class="text-[11px] font-bold text-center"
-                 :class="availableProducts.length === 0 ? 'text-rose-600' : (availableProducts.length <= 2 ? 'text-amber-600' : 'text-slate-600')">
-                <span v-if="availableProducts.length === 0">🚨 {{ t.parentBoxEmptyAlert }}</span>
-                <span v-else-if="availableProducts.length <= 2">⚠️ {{ t.parentBoxLowAlert(availableProducts.length) }}</span>
-                <span v-else>✨ {{ t.parentBoxHealthy(availableProducts.length) }}</span>
-              </p>
-            </div>
-
             <!-- DETALLE DE REGALOS ELEGIDOS VS PENDIENTES -->
             <div class="space-y-2 pt-2 border-t border-slate-100 max-h-60 overflow-y-auto">
               <div v-if="purchasedProducts.length > 0" class="space-y-1">
@@ -653,140 +837,142 @@
             </div>
           </div>
 
-          <!-- PRODUCTOS DISPONIBLES PARA EL INVITADO -->
-          <div class="space-y-3 mb-6">
-            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 px-1">
-              {{ t.availableGifts }} ({{ availableProducts.length }})
-            </h3>
+          <!-- PRODUCTOS DISPONIBLES PARA EL INVITADO (SOLO SI LA LISTA SIGUE ACTIVA) -->
+          <template v-if="!activeList.isArchived">
+            <div class="space-y-3 mb-6">
+              <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 px-1">
+                {{ t.availableGifts }} ({{ availableProducts.length }})
+              </h3>
 
-            <div v-if="availableProducts.length === 0" class="text-center py-8 bg-white/60 rounded-3xl border border-dashed border-slate-300">
-              <p class="text-3xl mb-1">🎉</p>
-              <p class="text-sm font-bold text-slate-500">{{ t.allGiftsReserved }}</p>
-            </div>
-
-            <div v-for="product in availableProducts" :key="product.id" 
-                 class="bg-white/80 p-3.5 rounded-2xl border border-white shadow-sm flex items-center gap-3">
-              <div @click="product.image ? previewProduct = product : null"
-                   class="w-16 h-16 bg-pink-100/70 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden relative border border-pink-100"
-                   :class="product.image ? 'cursor-zoom-in group' : ''">
-                <img v-if="product.image" :src="product.image" :alt="product.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
-                <span v-else>{{ product.emoji || '🎁' }}</span>
-                <span v-if="product.image" class="absolute bottom-0.5 right-0.5 bg-black/50 text-white text-[9px] px-1 rounded-md">🔍</span>
+              <div v-if="availableProducts.length === 0" class="text-center py-8 bg-white/60 rounded-3xl border border-dashed border-slate-300">
+                <p class="text-3xl mb-1">🎉</p>
+                <p class="text-sm font-bold text-slate-500">{{ t.allGiftsReserved }}</p>
               </div>
 
-              <div class="flex-1 min-w-0">
-                <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
-                <p class="text-xs text-slate-500 truncate">{{ product.desc || t.noDetails }}</p>
-                <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
-              </div>
-              
-              <button @click="toggleSelect(product.id)" 
-                      class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold flex-shrink-0"
-                      :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
-                ✓
-              </button>
-            </div>
-          </div>
-
-          <!-- SECCIÓN DE CHECKOUT / COMPRA -->
-          <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4">
-            <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
-              <span>{{ t.yourSelection }} ({{ selectedIds.length }})</span>
-              <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
-            </h3>
-
-            <!-- Bolsa de Regalo -->
-            <div class="flex items-center justify-between bg-pink-50/80 p-3 rounded-2xl border border-pink-100">
-              <div class="flex items-center gap-2.5">
-                <span class="text-xl">🛍️</span>
-                <div>
-                  <p class="font-bold text-xs text-slate-800">{{ t.addGiftBagTitle }}</p>
-                  <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }}</p>
+              <div v-for="product in availableProducts" :key="product.id" 
+                   class="bg-white/80 p-3.5 rounded-2xl border border-white shadow-sm flex items-center gap-3">
+                <div @click="product.image ? previewProduct = product : null"
+                     class="w-16 h-16 bg-pink-100/70 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden relative border border-pink-100"
+                     :class="product.image ? 'cursor-zoom-in group' : ''">
+                  <img v-if="product.image" :src="product.image" :alt="product.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+                  <span v-else>{{ product.emoji || '🎁' }}</span>
+                  <span v-if="product.image" class="absolute bottom-0.5 right-0.5 bg-black/50 text-white text-[9px] px-1 rounded-md">🔍</span>
                 </div>
-              </div>
-              <input type="checkbox" v-model="includeGiftBag" class="w-5 h-5 accent-pink-500 cursor-pointer">
-            </div>
 
-            <!-- Método de Pago -->
-            <div>
-              <label class="text-[11px] font-bold text-slate-500 block mb-1">{{ t.paymentMethodLabel }}</label>
-              <div class="grid grid-cols-3 gap-2">
-                <button v-for="method in localizedPaymentMethods" :key="method.id"
-                        type="button"
-                        @click="paymentMethod = method.id"
-                        class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
-                        :class="paymentMethod === method.id ? 'bg-purple-500 text-white border-purple-500' : 'bg-slate-50 text-slate-600 border-slate-200'">
-                  {{ method.name }}
+                <div class="flex-1 min-w-0">
+                  <h4 class="font-bold text-sm text-slate-800 truncate">{{ product.name }}</h4>
+                  <p class="text-xs text-slate-500 truncate">{{ product.desc || t.noDetails }}</p>
+                  <p class="font-bold text-pink-600 text-sm mt-0.5">₲ {{ product.price.toLocaleString() }}</p>
+                </div>
+                
+                <button @click="toggleSelect(product.id)" 
+                        class="w-8 h-8 rounded-full border flex items-center justify-center transition-all font-bold flex-shrink-0"
+                        :class="selectedIds.includes(product.id) ? 'bg-pink-500 border-pink-500 text-white shadow-md' : 'bg-slate-100 border-slate-200 text-slate-300'">
+                  ✓
                 </button>
               </div>
             </div>
 
-            <!-- DATOS DEL COMPRADOR -->
-            <div class="space-y-2.5">
-              <div>
-                <input v-model="buyer.name" @input="clearError('name')" type="text" :placeholder="t.buyerNamePlaceholder" 
-                       class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
-                       :class="missingFields.name ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
-                <p v-if="missingFields.name" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errNameInline }}</p>
-              </div>
+            <!-- SECCIÓN DE CHECKOUT / COMPRA -->
+            <div v-if="selectedIds.length > 0" class="bg-white/90 p-4 rounded-3xl shadow-lg border border-pink-200 space-y-4">
+              <h3 class="font-bold text-sm text-slate-800 border-b pb-2 flex items-center justify-between">
+                <span>{{ t.yourSelection }} ({{ selectedIds.length }})</span>
+                <span class="text-pink-600">₲ {{ subtotal.toLocaleString() }}</span>
+              </h3>
 
-              <div>
-                <input v-model="buyer.phone" @input="clearError('phone')" type="tel" :placeholder="t.buyerPhonePlaceholder" 
-                       class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
-                       :class="missingFields.phone ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
-                <p v-if="missingFields.phone" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errPhoneInline }}</p>
-              </div>
-              
-              <!-- SECCIÓN FACTURA LEGAL -->
-              <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
-                <div class="flex items-center justify-between">
-                  <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
-                    <span>🧾 {{ t.needInvoiceLabel }}</span>
-                  </label>
-                  <input type="checkbox" v-model="buyer.needInvoice" @change="clearInvoiceErrors" class="w-4 h-4 accent-purple-500 cursor-pointer">
+              <!-- Bolsa de Regalo -->
+              <div class="flex items-center justify-between bg-pink-50/80 p-3 rounded-2xl border border-pink-100">
+                <div class="flex items-center gap-2.5">
+                  <span class="text-xl">🛍️</span>
+                  <div>
+                    <p class="font-bold text-xs text-slate-800">{{ t.addGiftBagTitle }}</p>
+                    <p class="text-[10px] text-slate-500">+ ₲ {{ giftBagPrice.toLocaleString() }}</p>
+                  </div>
                 </div>
+                <input type="checkbox" v-model="includeGiftBag" class="w-5 h-5 accent-pink-500 cursor-pointer">
+              </div>
 
-                <div v-if="buyer.needInvoice" class="space-y-2 pt-1.5 border-t border-slate-200">
-                  <div>
-                    <input v-model="buyer.ruc" @input="clearError('ruc')" type="text" :placeholder="t.rucPlaceholder" 
-                           class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
-                           :class="missingFields.ruc ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
-                    <p v-if="missingFields.ruc" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errRucInline }}</p>
-                  </div>
-
-                  <div>
-                    <input v-model="buyer.invoiceName" @input="clearError('invoiceName')" type="text" :placeholder="t.companyNamePlaceholder" 
-                           class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
-                           :class="missingFields.invoiceName ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
-                    <p v-if="missingFields.invoiceName" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errCompanyInline }}</p>
-                  </div>
+              <!-- Método de Pago -->
+              <div>
+                <label class="text-[11px] font-bold text-slate-500 block mb-1">{{ t.paymentMethodLabel }}</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <button v-for="method in localizedPaymentMethods" :key="method.id"
+                          type="button"
+                          @click="paymentMethod = method.id"
+                          class="py-2 text-xs font-bold rounded-xl border text-center transition-all"
+                          :class="paymentMethod === method.id ? 'bg-purple-500 text-white border-purple-500' : 'bg-slate-50 text-slate-600 border-slate-200'">
+                    {{ method.name }}
+                  </button>
                 </div>
               </div>
 
-              <input v-model="buyer.notes" type="text" :placeholder="t.notesPlaceholder" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
-            </div>
+              <!-- DATOS DEL COMPRADOR -->
+              <div class="space-y-2.5">
+                <div>
+                  <input v-model="buyer.name" @input="clearError('name')" type="text" :placeholder="t.buyerNamePlaceholder" 
+                         class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
+                         :class="missingFields.name ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
+                  <p v-if="missingFields.name" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errNameInline }}</p>
+                </div>
 
-            <!-- RECUADRO DE RESUMEN DE CAMPOS FALTANTES -->
-            <div v-if="validationErrors.length > 0" class="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 space-y-1">
-              <p class="font-bold">{{ t.validationBoxTitle }}</p>
-              <ul class="list-disc list-inside text-[11px] font-semibold">
-                <li v-for="(err, idx) in validationErrors" :key="idx">{{ err }}</li>
-              </ul>
-            </div>
+                <div>
+                  <input v-model="buyer.phone" @input="clearError('phone')" type="tel" :placeholder="t.buyerPhonePlaceholder" 
+                         class="w-full p-2.5 bg-slate-50 rounded-xl text-xs outline-none transition-all border"
+                         :class="missingFields.phone ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-transparent focus:ring-2 focus:ring-pink-300'">
+                  <p v-if="missingFields.phone" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errPhoneInline }}</p>
+                </div>
+                
+                <!-- SECCIÓN FACTURA LEGAL -->
+                <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-2 mt-2">
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
+                      <span>🧾 {{ t.needInvoiceLabel }}</span>
+                    </label>
+                    <input type="checkbox" v-model="buyer.needInvoice" @change="clearInvoiceErrors" class="w-4 h-4 accent-purple-500 cursor-pointer">
+                  </div>
 
-            <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
-            <div class="pt-2 border-t flex items-center justify-between">
-              <div>
-                <span class="text-[10px] text-slate-400 font-bold uppercase block">{{ t.totalToPayLabel }}</span>
-                <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
+                  <div v-if="buyer.needInvoice" class="space-y-2 pt-1.5 border-t border-slate-200">
+                    <div>
+                      <input v-model="buyer.ruc" @input="clearError('ruc')" type="text" :placeholder="t.rucPlaceholder" 
+                             class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
+                             :class="missingFields.ruc ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
+                      <p v-if="missingFields.ruc" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errRucInline }}</p>
+                    </div>
+
+                    <div>
+                      <input v-model="buyer.invoiceName" @input="clearError('invoiceName')" type="text" :placeholder="t.companyNamePlaceholder" 
+                             class="w-full p-2 bg-white rounded-xl text-xs border outline-none transition-all"
+                             :class="missingFields.invoiceName ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200' : 'border-slate-200'">
+                      <p v-if="missingFields.invoiceName" class="text-[11px] text-rose-600 font-bold mt-1 pl-1">{{ t.errCompanyInline }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <input v-model="buyer.notes" type="text" :placeholder="t.notesPlaceholder" class="w-full p-2.5 bg-slate-50 rounded-xl text-xs border-0 outline-none">
               </div>
-              <button type="button" @click="confirmOrder" 
-                      :disabled="saving"
-                      class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 active:scale-95 transition-all">
-                {{ saving ? t.processingBtn : t.confirmGiftBtn }}
-              </button>
+
+              <!-- RECUADRO DE RESUMEN DE CAMPOS FALTANTES -->
+              <div v-if="validationErrors.length > 0" class="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 space-y-1">
+                <p class="font-bold">{{ t.validationBoxTitle }}</p>
+                <ul class="list-disc list-inside text-[11px] font-semibold">
+                  <li v-for="(err, idx) in validationErrors" :key="idx">{{ err }}</li>
+                </ul>
+              </div>
+
+              <!-- TOTAL Y BOTÓN DE CONFIRMACIÓN -->
+              <div class="pt-2 border-t flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] text-slate-400 font-bold uppercase block">{{ t.totalToPayLabel }}</span>
+                  <span class="text-xl font-bold text-pink-600">₲ {{ total.toLocaleString() }}</span>
+                </div>
+                <button type="button" @click="confirmOrder" 
+                        :disabled="saving"
+                        class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xs rounded-2xl shadow-md hover:opacity-95 active:scale-95 transition-all">
+                  {{ saving ? t.processingBtn : t.confirmGiftBtn }}
+                </button>
+              </div>
             </div>
-          </div>
+          </template>
         </template>
 
         <!-- PANTALLA INICIAL PARA CLIENTES: ACCESO PRIVADO + CÓMO FUNCIONA + LISTA DE EJEMPLO -->
@@ -866,6 +1052,31 @@
       </template>
 
     </main>
+
+    <!-- MODAL CONFIRMAR BAJA / CIERRE DE LISTA PASADA (MODO TIENDA) -->
+    <div v-if="listToArchive" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-5 w-full max-w-xs space-y-3.5 shadow-2xl text-center">
+        <div class="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-3xl">
+          🏁
+        </div>
+        <h3 class="font-bold text-base text-slate-800">Cerrar y Archivar Lista</h3>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Vas a dar de baja la lista de <strong>{{ listToArchive.childName }}</strong>. Quedará guardada en el <strong>Historial</strong> con su resumen de ventas y se activará su vale <strong>"Cumpleañero VIP" (10% OFF)</strong>.
+        </p>
+        <div class="bg-slate-50 p-3 rounded-2xl text-xs space-y-1 border border-slate-200">
+          <p>Regalos vendidos: <strong>{{ (listToArchive.products || []).filter(p => p.purchased).length }} de {{ (listToArchive.products || []).length }}</strong></p>
+          <p>Monto total vendido: <strong class="text-pink-600">₲{{ (listToArchive.products || []).filter(p => p.purchased).reduce((s, p) => s + p.price, 0).toLocaleString() }}</strong></p>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button @click="listToArchive = null" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl">
+            Cancelar
+          </button>
+          <button @click="confirmArchiveList" :disabled="saving" class="flex-1 py-2.5 bg-pink-500 text-white font-bold text-xs rounded-xl shadow-sm">
+            {{ saving ? 'Cerrando...' : 'Sí, Dar de Baja' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- MODAL QR EXCLUSIVO PARA FAMILIA / INVITADOS -->
     <div v-if="showFamilyQrModal && activeList && !isDemoMode" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1241,10 +1452,9 @@
         installAppPrompt: 'Instala Mi CasitApp en tu celular',
         installBtn: 'Instalar',
         loadingLists: 'Cargando Mi CasitApp...',
-        currentListLabel: 'Lista actual',
-        noListsYet: 'Aún no hay listas creadas',
         listTitle: (name) => `Lista de ${name}`,
         listSubtitle: 'Selecciona los regalos que deseas obsequiar',
+        archivedListPublicSub: 'Esta celebración ya finalizó. ¡Gracias por ser parte de este día especial!',
         availableGifts: 'Regalos Disponibles',
         allGiftsReserved: '¡Todos los regalos han sido reservados!',
         noDetails: 'Sin detalle',
@@ -1306,6 +1516,21 @@
         tryDemoBtn: 'Ver Lista de Ejemplo Interactiva',
         demoBannerTitle: 'Modo Demostración (Lista de Ejemplo)',
         demoBannerSub: 'Prueba seleccionar regalos y simular una reserva sin compromiso.',
+        thankYouTitle: (name) => `¡Muchas gracias, familia de ${name}!`,
+        thankYouMessage: 'En La Casita by AGM estamos felices de haber sido parte de este cumpleaños tan especial. Como agradecimiento por elegirnos, activamos tus beneficios exclusivos:',
+        keepAppInstalledHint: 'Conserva Mi CasitApp instalada en tu celular para recibir tus vales de mitad de año y la invitación al próximo cumpleaños.',
+        vipWalletTitle: 'Billetera de Beneficios VIP',
+        vip10Title: 'Vale "Cumpleañero VIP" — 10% de Descuento',
+        vip10Desc: 'Válido para tu siguiente compra en La Casita by AGM presentando este código en caja.',
+        copyCodeBtn: 'Copiar código',
+        halfYear5Title: 'Vale Celebración Medio Año — 5% de Descuento',
+        halfYearUnlockedDesc: '¡Ya pasaron 6 meses desde el cumple! Disfruta de un 5% OFF especial en tienda.',
+        halfYearLockedDesc: (date) => `Se activará automáticamente al cumplirse 6 meses del cumpleaños (${date}).`,
+        nextBdayBadge: 'Próximo Cumple',
+        nextBdayTitle: (name) => `Siguiente Lista de Regalos de ${name}`,
+        nextBdayActiveDesc: '¡Faltan menos de 2 semanas para el gran día! Te invitamos a pasar por La Casita para armar la nueva lista.',
+        nextBdayUpcomingDesc: (date) => `Te enviaremos tu invitación VIP 2 semanas antes del próximo cumple (el ${date}).`,
+        reserveNextListBtn: 'Agendar nueva lista por WhatsApp',
         trackModalTitle: 'Estado de mi Pedido',
         trackPhoneLabel: 'Tu número de teléfono',
         forLabel: 'Para',
@@ -1318,16 +1543,13 @@
         toastReadyTitle: '¡Tu Regalo Está Listo!',
         toastReadyBody: (buyer) => `Hola ${buyer}, ya puedes pasar a retirar por La Casita by AGM.`,
         parentPinTitle: 'Acceso Padres / Cumpleañero',
-        parentPinSub: 'Ingresa el PIN de 4 dígitos de esta lista para ver cuántos regalos ya eligieron los invitados:',
+        parentPinSub: 'Ingresa el PIN de 4 dígitos de esta lista para ver el resumen y beneficios:',
         parentPinWrong: 'PIN incorrecto para esta lista',
         parentPanelTitle: 'Estado de la Caja de Regalos',
         parentPanelSub: 'Seguimiento en tiempo real para la familia',
         parentTotalItems: 'Total Lista',
         parentChosenItems: 'Elegidos',
         parentPendingItems: 'Pendientes',
-        parentBoxEmptyAlert: '¡La caja se vació! Todos los regalos fueron elegidos. Pasa por la tienda si faltan invitados.',
-        parentBoxLowAlert: (n) => `¡Atención! Solo quedan ${n} regalo(s) disponible(s) en la caja.`,
-        parentBoxHealthy: (n) => `Aún quedan ${n} regalos disponibles para los invitados.`,
         parentAlreadyChosenList: 'Regalos ya elegidos',
         parentStillPendingList: 'Regalos aún pendientes',
         chosenBadge: 'Elegido',
@@ -1350,10 +1572,9 @@
         installAppPrompt: 'Mi CasitApp auf dem Handy installieren',
         installBtn: 'Installieren',
         loadingLists: 'Mi CasitApp wird geladen...',
-        currentListLabel: 'Aktuelle Wunschliste',
-        noListsYet: 'Noch keine Wunschlisten erstellt',
         listTitle: (name) => `Wunschliste von ${name}`,
         listSubtitle: 'Wähle die Geschenke aus, die du schenken möchtest',
+        archivedListPublicSub: 'Diese Feier ist bereits beendet. Vielen Dank für eure Teilnahme!',
         availableGifts: 'Verfügbare Geschenke',
         allGiftsReserved: 'Alle Geschenke wurden bereits reserviert!',
         noDetails: 'Keine weiteren Details',
@@ -1415,6 +1636,21 @@
         tryDemoBtn: 'Interaktive Beispielliste ansehen',
         demoBannerTitle: 'Demomodus (Beispielliste)',
         demoBannerSub: 'Teste unverbindlich, wie Gäste Geschenke auswählen.',
+        thankYouTitle: (name) => `Herzlichen Dank, Familie von ${name}!`,
+        thankYouMessage: 'Wir bei La Casita by AGM freuen uns sehr, Teil dieses besonderen Geburtstags gewesen zu sein. Als Dankeschön haben wir eure VIP-Vorteile aktiviert:',
+        keepAppInstalledHint: 'Behaltet Mi CasitApp auf dem Handy installiert, um euren Halbjahres-Gutschein und die Einladung zum nächsten Geburtstag zu erhalten.',
+        vipWalletTitle: 'VIP-Vorteilsbörse',
+        vip10Title: 'Gutschein "Cumpleañero VIP" — 10% Rabatt',
+        vip10Desc: 'Gültig für euren nächsten Einkauf bei La Casita by AGM.',
+        copyCodeBtn: 'Code kopieren',
+        halfYear5Title: 'Halbjahres-Gutschein — 5% Rabatt',
+        halfYearUnlockedDesc: '6 Monate sind vergangen! Genießt 5% Rabatt bei eurem Besuch.',
+        halfYearLockedDesc: (date) => `Wird automatisch 6 Monate nach dem Geburtstag freigeschaltet (${date}).`,
+        nextBdayBadge: 'Nächster Geburtstag',
+        nextBdayTitle: (name) => `Nächste Wunschliste für ${name}`,
+        nextBdayActiveDesc: 'In weniger als 2 Wochen ist es wieder soweit! Kommt vorbei für die neue Wunschliste.',
+        nextBdayUpcomingDesc: (date) => `Wir erinnern euch 2 Wochen vor dem nächsten Geburtstag (${date}).`,
+        reserveNextListBtn: 'Neue Liste per WhatsApp planen',
         trackModalTitle: 'Status meiner Bestellung',
         trackPhoneLabel: 'Deine Telefonnummer',
         forLabel: 'Für',
@@ -1427,16 +1663,13 @@
         toastReadyTitle: 'Dein Geschenk ist fertig!',
         toastReadyBody: (buyer) => `Hallo ${buyer}, dein Geschenk kann jetzt bei La Casita by AGM abgeholt werden.`,
         parentPinTitle: 'Eltern- / Familienbereich',
-        parentPinSub: 'Gib den 4-stelligen PIN dieser Liste ein, um den Stand der Geschenke zu sehen:',
+        parentPinSub: 'Gib den 4-stelligen PIN dieser Liste ein:',
         parentPinWrong: 'Falscher PIN für diese Liste',
         parentPanelTitle: 'Status der Geschenkbox',
         parentPanelSub: 'Live-Übersicht für die Familie',
         parentTotalItems: 'Gesamt',
         parentChosenItems: 'Gewählt',
         parentPendingItems: 'Offen',
-        parentBoxEmptyAlert: 'Die Geschenkbox ist leer! Alle Geschenke wurden gewählt.',
-        parentBoxLowAlert: (n) => `Achtung! Es sind nur noch ${n} Geschenk(e) verfügbar.`,
-        parentBoxHealthy: (n) => `Es sind noch ${n} Geschenke für Gäste verfügbar.`,
         parentAlreadyChosenList: 'Bereits gewählte Geschenke',
         parentStillPendingList: 'Noch offene Geschenke',
         chosenBadge: 'Gewählt',
@@ -1459,10 +1692,9 @@
         installAppPrompt: 'Install Mi CasitApp on your phone',
         installBtn: 'Install',
         loadingLists: 'Loading Mi CasitApp...',
-        currentListLabel: 'Current wishlist',
-        noListsYet: 'No wishlists created yet',
         listTitle: (name) => `${name}'s Wishlist`,
         listSubtitle: 'Select the gifts you would like to give',
+        archivedListPublicSub: 'This celebration has ended. Thank you for being part of this special day!',
         availableGifts: 'Available Gifts',
         allGiftsReserved: 'All gifts have been reserved!',
         noDetails: 'No extra details',
@@ -1524,6 +1756,21 @@
         tryDemoBtn: 'View Interactive Sample Wishlist',
         demoBannerTitle: 'Demo Mode (Sample Wishlist)',
         demoBannerSub: 'Try selecting gifts and simulating a reservation.',
+        thankYouTitle: (name) => `Thank you so much, ${name}'s family!`,
+        thankYouMessage: 'At La Casita by AGM we are thrilled to have been part of this special birthday. As a thank you for choosing us, we unlocked your VIP rewards:',
+        keepAppInstalledHint: 'Keep Mi CasitApp installed on your phone to receive your half-year voucher and next birthday invitation.',
+        vipWalletTitle: 'VIP Rewards Wallet',
+        vip10Title: '"Cumpleañero VIP" Voucher — 10% OFF',
+        vip10Desc: 'Valid on your next purchase at La Casita by AGM by showing this code at checkout.',
+        copyCodeBtn: 'Copy code',
+        halfYear5Title: 'Half-Year Celebration Voucher — 5% OFF',
+        halfYearUnlockedDesc: '6 months have passed since the birthday! Enjoy a special 5% OFF in store.',
+        halfYearLockedDesc: (date) => `Automatically unlocks 6 months after the birthday (${date}).`,
+        nextBdayBadge: 'Next Birthday',
+        nextBdayTitle: (name) => `${name}'s Next Gift Wishlist`,
+        nextBdayActiveDesc: 'Less than 2 weeks until the big day! Visit La Casita to set up your new wishlist.',
+        nextBdayUpcomingDesc: (date) => `We will send your VIP invite 2 weeks before the next birthday (${date}).`,
+        reserveNextListBtn: 'Book next wishlist via WhatsApp',
         trackModalTitle: 'My Order Status',
         trackPhoneLabel: 'Your phone number',
         forLabel: 'For',
@@ -1536,16 +1783,13 @@
         toastReadyTitle: 'Your Gift Is Ready!',
         toastReadyBody: (buyer) => `Hi ${buyer}, your gift is ready for pickup at La Casita by AGM.`,
         parentPinTitle: 'Parents / Birthday Host Access',
-        parentPinSub: 'Enter the 4-digit list PIN to track how many gifts have been chosen:',
+        parentPinSub: 'Enter the 4-digit list PIN to track gifts & rewards:',
         parentPinWrong: 'Incorrect PIN for this list',
         parentPanelTitle: 'Gift Box Live Status',
         parentPanelSub: 'Real-time tracking for parents',
         parentTotalItems: 'Total',
         parentChosenItems: 'Chosen',
         parentPendingItems: 'Remaining',
-        parentBoxEmptyAlert: 'The gift box is empty! All gifts have been chosen. Visit the store if more guests are coming.',
-        parentBoxLowAlert: (n) => `Heads up! Only ${n} gift(s) left available in the box.`,
-        parentBoxHealthy: (n) => `${n} gifts are still available for guests.`,
         parentAlreadyChosenList: 'Already chosen gifts',
         parentStillPendingList: 'Still available gifts',
         chosenBadge: 'Chosen',
@@ -1577,6 +1821,7 @@
         const processingImage = ref(false);
         const isAdmin = ref(false);
         const adminTab = ref('lists'); // 'lists' | 'orders'
+        const adminListFilter = ref('active'); // 'active' | 'archived'
         const ADMIN_PIN = '21162430';
         const STORE_WHATSAPP = '595981925071';
 
@@ -1627,7 +1872,7 @@
           }
         };
 
-        // QR DE MOSTRADOR (GENERAL DE LA TIENDA)
+        // QR DE MOSTRADOR
         const showQrModal = ref(false);
         const copiedLink = ref(false);
         const cleanAppUrl = computed(() => OFFICIAL_BASE_URL);
@@ -1635,9 +1880,7 @@
           return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&color=1E293B&data=${encodeURIComponent(cleanAppUrl.value)}`;
         });
 
-        const printQrCode = () => {
-          window.print();
-        };
+        const printQrCode = () => window.print();
 
         const copyCleanLink = async () => {
           try {
@@ -1649,9 +1892,10 @@
           }
         };
 
-        // ENLACE Y QR DIRECTO DE LA LISTA PARA MAMÁ / CUMPLEAÑERO
+        // ENLACE Y QR DIRECTO DE LA LISTA
         const showFamilyQrModal = ref(false);
         const copiedFamilyLink = ref(false);
+        const copiedVoucher = ref('');
 
         const activeListDirectUrl = computed(() => {
           if (!activeList.value) return OFFICIAL_BASE_URL;
@@ -1667,6 +1911,32 @@
           return (listObj.accessCode || listObj.id.slice(0, 6)).toUpperCase();
         };
 
+        const getVipVoucherCode = (listObj) => {
+          if (!listObj) return 'VIP-10';
+          const clean = (listObj.childName || 'VIP')
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+          return `VIP-${clean}-10`;
+        };
+
+        const getHalfYearVoucherCode = (listObj) => {
+          if (!listObj) return 'MEDIO-5';
+          const clean = (listObj.childName || 'VIP')
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+          return `MEDIO-${clean}-5`;
+        };
+
+        const copyVoucherCode = async (code) => {
+          try {
+            await navigator.clipboard.writeText(code);
+            copiedVoucher.value = code;
+            setTimeout(() => { copiedVoucher.value = ''; }, 2500);
+          } catch (e) {
+            alert(code);
+          }
+        };
+
         const shareListWhatsappAdmin = () => {
           if (!activeList.value) return;
           const dateStr = activeList.value.eventDate ? `\n📅 Fecha: ${formatEventDateTime(activeList.value.eventDate, activeList.value.eventTime)}` : '';
@@ -1675,6 +1945,17 @@
                       `Enlace directo para tus invitados:\n${activeListDirectUrl.value}\n` +
                       `🎟️ *Código de lista:* ${code}\n\n` +
                       `🔑 *Tu PIN exclusivo para ver el estado de la caja y compartir el QR:* ${activeList.value.familyPin || '1234'}`;
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
+        const sendThankYouWhatsapp = (listObj) => {
+          if (!listObj) return;
+          const vipCode = listObj.vipVoucherCode || getVipVoucherCode(listObj);
+          const listLink = `${OFFICIAL_BASE_URL}?list=${encodeURIComponent(listObj.id)}`;
+          const msg = `💖 *¡Muchas gracias por elegir La Casita by AGM para el cumple de ${listObj.childName}!* 🎁\n\n` +
+                      `Fue un placer acompañarlos en este día tan especial. Como agradecimiento, les regalamos el vale *"Cumpleañero VIP"* con un *10% de descuento* para su próxima compra en nuestra tienda:\n\n` +
+                      `🎟️ *Código de Vale:* ${vipCode}\n\n` +
+                      `📲 Mantengan *Mi CasitApp* instalada en su celular ingresando aquí para ver su vale y recibir en 6 meses su beneficio de Medio Año:\n${listLink}`;
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         };
 
@@ -1749,6 +2030,7 @@
         const showNewListModal = ref(false);
         const showEditListModal = ref(false);
         const editingListData = ref(null);
+        const listToArchive = ref(null);
         const showTrackModal = ref(false);
         const showCameraModal = ref(false);
         const cameraScanMode = ref('sku');
@@ -1771,7 +2053,7 @@
         let unsubscribeAdminOrders = null;
         let unsubscribeGuestOrder = null;
 
-        // MODO DEMO / LISTA DE EJEMPLO INTERACTIVA
+        // MODO DEMO
         const isDemoMode = ref(false);
         const demoList = ref({
           id: 'demo-list',
@@ -1810,6 +2092,7 @@
 
         const newOrderToast = ref(null);
         const readyOrderToast = ref(null);
+        const vipMilestoneToast = ref(null);
         let initialOrdersLoaded = false;
         let knownOrderIds = new Set();
 
@@ -1850,11 +2133,86 @@
           return timeStr ? `${formattedDate} • ${timeStr} hs` : formattedDate;
         };
 
-        const onListChange = () => {
-          selectedIds.value = [];
-          validationErrors.value = [];
-          isParentUnlocked.value = false;
+        const formatShortDate = (dateObj) => {
+          const d = String(dateObj.getDate()).padStart(2, '0');
+          const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const y = dateObj.getFullYear();
+          return `${d}/${m}/${y}`;
         };
+
+        // CÁLCULO AUTOMÁTICO DE HITOS VIP (6 MESES Y 2 SEMANAS ANTES DEL PRÓXIMO CUMPLE)
+        const milestoneStatus = computed(() => {
+          const list = activeList.value;
+          const baseDate = (list && list.eventDate)
+            ? new Date(list.eventDate + 'T12:00:00')
+            : (list && list.archivedAt ? new Date(list.archivedAt) : new Date());
+
+          const now = new Date();
+
+          const halfYearDate = new Date(baseDate);
+          halfYearDate.setMonth(halfYearDate.getMonth() + 6);
+
+          const nextBdayDate = new Date(baseDate);
+          nextBdayDate.setFullYear(nextBdayDate.getFullYear() + 1);
+
+          const inviteDate = new Date(nextBdayDate);
+          inviteDate.setDate(inviteDate.getDate() - 14);
+
+          return {
+            halfYearUnlocked: now >= halfYearDate,
+            halfYearDateFormatted: formatShortDate(halfYearDate),
+            nextBdayInviteActive: now >= inviteDate,
+            nextBdayDateFormatted: formatShortDate(nextBdayDate),
+            inviteDateFormatted: formatShortDate(inviteDate)
+          };
+        });
+
+        const checkAndTriggerVipNotifications = (listObj) => {
+          if (!listObj || !listObj.isArchived || isAdmin.value) return;
+          const shownKey = `micasitapp_vip_notified_${listObj.id}`;
+          const lastShownStage = sessionStorage.getItem(shownKey);
+
+          const baseDate = listObj.eventDate ? new Date(listObj.eventDate + 'T12:00:00') : new Date(listObj.archivedAt || Date.now());
+          const now = new Date();
+          const halfYearDate = new Date(baseDate);
+          halfYearDate.setMonth(halfYearDate.getMonth() + 6);
+          const nextBdayDate = new Date(baseDate);
+          nextBdayDate.setFullYear(nextBdayDate.getFullYear() + 1);
+          const inviteDate = new Date(nextBdayDate);
+          inviteDate.setDate(inviteDate.getDate() - 14);
+
+          if (now >= inviteDate && lastShownStage !== 'next_bday') {
+            sessionStorage.setItem(shownKey, 'next_bday');
+            playNotificationSound();
+            vipMilestoneToast.value = {
+              icon: '🎈',
+              title: `¡Faltan 2 semanas para el cumple de ${listObj.childName}!`,
+              body: 'Te invitamos a crear su nueva Lista de Regalos en La Casita by AGM.'
+            };
+          } else if (now >= halfYearDate && lastShownStage !== 'half_year') {
+            sessionStorage.setItem(shownKey, 'half_year');
+            playNotificationSound();
+            vipMilestoneToast.value = {
+              icon: '🎂',
+              title: '¡Feliz Medio Año! Vale 5% OFF activado',
+              body: `Se cumplen 6 meses del cumple de ${listObj.childName}. Ya puedes usar tu vale del 5% en tienda.`
+            };
+          } else if (!lastShownStage && !listObj.vipVoucherRedeemed) {
+            sessionStorage.setItem(shownKey, 'vip_10');
+            playNotificationSound();
+            vipMilestoneToast.value = {
+              icon: '👑',
+              title: '¡Tienes un Vale Cumpleañero VIP (10% OFF)!',
+              body: `Gracias por elegir La Casita by AGM para ${listObj.childName}. Usa tu código en tu próxima compra.`
+            };
+          }
+        };
+
+        const whatsappNextBirthdayUrl = computed(() => {
+          const child = activeList.value ? activeList.value.childName : '';
+          const msg = `🎈 ¡Hola *La Casita by AGM*! Se acerca el próximo cumpleaños de *${child}* y nos gustaría agendar una cita para armar su nueva Lista de Regalos en Mi CasitApp 🎁`;
+          return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(msg)}`;
+        });
 
         const exitCurrentGuestList = () => {
           isDemoMode.value = false;
@@ -1927,8 +2285,10 @@
             const targetId = lockedListId.value;
             unsubscribeLists = onSnapshot(doc(db, "wishlists", targetId), (docSnap) => {
               if (docSnap.exists()) {
-                lists.value = [{ id: docSnap.id, ...docSnap.data() }];
+                const listObj = { id: docSnap.id, ...docSnap.data() };
+                lists.value = [listObj];
                 selectedListId.value = docSnap.id;
+                checkAndTriggerVipNotifications(listObj);
               } else {
                 lists.value = [];
                 selectedListId.value = '';
@@ -1956,6 +2316,12 @@
             });
           }
         };
+
+        const activeListsOnly = computed(() => lists.value.filter(l => !l.isArchived));
+        const archivedListsOnly = computed(() => lists.value.filter(l => l.isArchived));
+        const filteredAdminLists = computed(() => {
+          return adminListFilter.value === 'archived' ? archivedListsOnly.value : activeListsOnly.value;
+        });
 
         const startAdminOrdersListener = () => {
           if (unsubscribeAdminOrders) unsubscribeAdminOrders();
@@ -2169,6 +2535,71 @@
           }
         };
 
+        const openArchiveModal = (listObj) => {
+          listToArchive.value = listObj;
+        };
+
+        const confirmArchiveList = async () => {
+          if (!listToArchive.value) return;
+          saving.value = true;
+          try {
+            const target = listToArchive.value;
+            const prods = target.products || [];
+            const soldCount = prods.filter(p => p.purchased).length;
+            const totalSoldGs = prods.filter(p => p.purchased).reduce((s, p) => s + p.price, 0);
+            const vipCode = target.vipVoucherCode || getVipVoucherCode(target);
+
+            await updateDoc(doc(db, "wishlists", target.id), {
+              isArchived: true,
+              archivedAt: Date.now(),
+              finalStats: {
+                totalItems: prods.length,
+                soldItems: soldCount,
+                totalSoldAmount: totalSoldGs
+              },
+              vipVoucherCode: vipCode,
+              vipVoucherRedeemed: target.vipVoucherRedeemed || false
+            });
+
+            listToArchive.value = null;
+            adminListFilter.value = 'archived';
+          } catch (e) {
+            alert("Error al dar de baja la lista: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
+
+        const markVipVoucherRedeemed = async (listObj) => {
+          if (!listObj) return;
+          saving.value = true;
+          try {
+            await updateDoc(doc(db, "wishlists", listObj.id), {
+              vipVoucherRedeemed: true,
+              vipRedeemedAt: Date.now()
+            });
+          } catch (e) {
+            alert("Error al registrar canje: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
+
+        const reactivateArchivedList = async (listObj) => {
+          if (!listObj) return;
+          saving.value = true;
+          try {
+            await updateDoc(doc(db, "wishlists", listObj.id), {
+              isArchived: false
+            });
+            adminListFilter.value = 'active';
+          } catch (e) {
+            alert("Error al reactivar la lista: " + e.message);
+          } finally {
+            saving.value = false;
+          }
+        };
+
         const openCameraScanner = async () => {
           cameraScanMode.value = 'sku';
           showCameraModal.value = true;
@@ -2324,7 +2755,7 @@
             if (!lockedListId.value) return null;
             return lists.value.find(l => l.id === lockedListId.value) || null;
           }
-          return lists.value.find(l => l.id === selectedListId.value) || lists.value[0] || null;
+          return lists.value.find(l => l.id === selectedListId.value) || filteredAdminLists.value[0] || lists.value[0] || null;
         });
 
         const availableProducts = computed(() => {
@@ -2335,6 +2766,10 @@
         const purchasedProducts = computed(() => {
           if (!activeList.value || !activeList.value.products) return [];
           return activeList.value.products.filter(p => p.purchased);
+        });
+
+        const listTotalSoldAmount = computed(() => {
+          return purchasedProducts.value.reduce((sum, p) => sum + (Number(p.price) || 0), 0);
         });
 
         const totalProductsCount = computed(() => {
@@ -2449,9 +2884,11 @@
               familyPin: (newList.value.familyPin || generateRandomPin()).trim(),
               accessCode: generateAccessCode(name),
               isConfirmed: false,
+              isArchived: false,
               products: [],
               createdAt: Date.now()
             });
+            adminListFilter.value = 'active';
             selectedListId.value = docRef.id;
             newList.value = { childName: '', event: '', eventDate: '', eventTime: '', familyPin: generateRandomPin() };
             showNewListModal.value = false;
@@ -2596,7 +3033,6 @@
           validationErrors.value = errors;
           if (errors.length > 0) return;
 
-          // SIMULACIÓN SEGURA SI ESTÁ EN MODO LISTA DE EJEMPLO (NO ESCRIBE EN FIREBASE)
           if (isDemoMode.value) {
             const itemsBought = demoList.value.products.filter(p => selectedIds.value.includes(p.id));
             lastOrderSnapshot.value = {
@@ -2727,17 +3163,21 @@
 
         return {
           lang, t, setLang,
-          loading, saving, processingImage, isAdmin, adminTab, showPinModal, pinInput, pinError,
+          loading, saving, processingImage, isAdmin, adminTab, adminListFilter, showPinModal, pinInput, pinError,
           handleSecretLogoTap, exitAdminMode, verifyPin,
           showInstallBanner, triggerPwaInstall,
           showQrModal, qrCodeImageUrl, printQrCode, copyCleanLink, copiedLink,
           showFamilyQrModal, activeListQrUrl, getListDisplayCode, shareListWhatsappAdmin, shareListWhatsappFamily,
-          downloadFamilyQrImage, copyFamilyDirectLink, copiedFamilyLink,
+          sendThankYouWhatsapp, downloadFamilyQrImage, copyFamilyDirectLink, copiedFamilyLink,
+          getVipVoucherCode, getHalfYearVoucherCode, copyVoucherCode, copiedVoucher,
+          milestoneStatus, vipMilestoneToast, whatsappNextBirthdayUrl,
           isParentUnlocked, showParentPinModal, parentPinInput, parentPinError, openParentPanel, verifyParentPin,
           isDemoMode, enterDemoMode,
           lockedListId, accessCodeInput, accessCodeError, searchingList, openListByCode, exitCurrentGuestList,
-          lists, selectedListId, activeList, onListChange, formatEventDateTime, toggleListConfirmed,
-          availableProducts, purchasedProducts, totalProductsCount, progressPercentage,
+          lists, activeListsOnly, archivedListsOnly, filteredAdminLists, selectedListId, activeList,
+          formatEventDateTime, toggleListConfirmed,
+          listToArchive, openArchiveModal, confirmArchiveList, markVipVoucherRedeemed, reactivateArchivedList,
+          availableProducts, purchasedProducts, listTotalSoldAmount, totalProductsCount, progressPercentage,
           adminOrders, pendingOrdersCount, selectedIds, includeGiftBag,
           giftBagPrice, paymentMethod, localizedPaymentMethods, newProduct, newList,
           showEditListModal, editingListData, openEditListModal, saveEditedList,
